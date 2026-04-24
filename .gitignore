@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+*.db
+*.log
+.DS_Store
+start.sh
+p2.sh
+run_server.py
+web/start.sh

@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent World - 世界观察</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* 左侧地图 */
+        .map-panel {
+            flex: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .world-time {
+            font-size: 14px;
+            color: #888;
+        }
+
+        .world-time span {
+            color: #e94560;
+            font-weight: 600;
+        }
+
+        /* 地图区域 */
+        .map-container {
+            flex: 1;
+            background: #16213e;
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #0f3460;
+        }
+
+        .zone {
+            position: absolute;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 500;
+            text-align: center;
+            padding: 5px;
+        }
+
+        .zone:hover {
+            transform: scale(1.05);
+            z-index: 10;
+        }
+
+        .zone-name {
+            font-size: 11px;
+            color: #fff;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+        }
+
+        .zone-count {
+            font-size: 10px;
+            color: rgba(255,255,255,0.7);
+            margin-top: 2px;
+        }
+
+        .zone-legend {
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* 区域颜色 */
+        .zone-village_square { background: linear-gradient(135deg, #e94560, #c73e54); }
+        .zone-market { background: linear-gradient(135deg, #f39c12, #d68910); }
+        .zone-tavern { background: linear-gradient(135deg, #9b59b6, #8e44ad); }
+        .zone-farm { background: linear-gradient(135deg, #27ae60, #1e8449); }
+        .zone-mine { background: linear-gradient(135deg, #5d6d7e, #4a5568); }
+        .zone-forest { background: linear-gradient(135deg, #2ecc71, #27ae60); }
+        .zone-library { background: linear-gradient(135deg, #3498db, #2980b9); }
+        .zone-temple { background: linear-gradient(135deg, #f1c40f, #d4ac0d); }
+        .zone-barracks { background: linear-gradient(135deg, #e74c3c, #c0392b); }
+        .zone-outskirts { background: linear-gradient(135deg, #95a5a6, #7f8c8d); }
+
+        /* 右侧面板 */
+        .side-panel {
+            width: 320px;
+            background: #16213e;
+            border-left: 1px solid #0f3460;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .tabs {
+            display: flex;
+            border-bottom: 1px solid #0f3460;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 14px;
+            color: #888;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            color: #e94560;
+            border-bottom: 2px solid #e94560;
+        }
+
+        .tab:hover {
+            color: #fff;
+        }
+
+        /* NPC 列表 */
+        .npc-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .npc-card {
+            background: #1a1a2e;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #0f3460;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .npc-card:hover {
+            border-color: #e94560;
+            transform: translateX(3px);
+        }
+
+        .npc-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .npc-name {
+            font-weight: 600;
+            color: #fff;
+        }
+
+        .npc-level {
+            font-size: 11px;
+            background: #e94560;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+
+        .npc-role {
+            font-size: 12px;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .npc-status {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .status-idle { background: #27ae60; color: #fff; }
+        .status-working { background: #3498db; color: #fff; }
+        .status-traveling { background: #f39c12; color: #fff; }
+        .status-socializing { background: #9b59b6; color: #fff; }
+        .status-resting { background: #95a5a6; color: #fff; }
+
+        .npc-location {
+            font-size: 11px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        /* 世界信息 */
+        .world-info {
+            padding: 15px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #0f3460;
+            font-size: 13px;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: #888;
+        }
+
+        .info-value {
+            color: #fff;
+            font-weight: 500;
+        }
+
+        /* 空状态 */
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #666;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+        }
+
+        /* 连接线 SVG */
+        .map-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .connection-line {
+            stroke: rgba(255,255,255,0.15);
+            stroke-width: 2;
+            fill: none;
+        }
+
+        /* 滚动条 */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #1a1a2e;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #0f3460;
+            border-radius: 3px;
+        }
+
+        /* 刷新按钮 */
+        .refresh-btn {
+            background: #e94560;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+
+        .refresh-btn:hover {
+            background: #c73e54;
+        }
+
+        /* 角色标签颜色 */
+        .role-merchant { color: #f39c12; }
+        .role-guard { color: #e74c3c; }
+        .role-farmer { color: #27ae60; }
+        .role-scholar { color: #3498db; }
+        .role-artisan { color: #9b59b6; }
+        .role-miner { color: #5d6d7e; }
+        .role-healer { color: #f1c40f; }
+        .role-barbarian { color: #c0392b; }
+        .role-sage { color: #8e44ad; }
+        .role-wanderer { color: #95a5a6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 左侧：地图 -->
+        <div class="map-panel">
+            <div class="panel-header">
+                <div class="panel-title">🗺️ 世界地图</div>
+                <div class="world-time">
+                    第 <span id="year">1</span> 年 <span id="month">1</span> 月 <span id="day">1</span> 日
+                    &nbsp;&nbsp;
+                    <span id="hour">08</span>:<span id="minute">00</span>
+                </div>
+            </div>
+            <div class="map-container" id="mapContainer">
+                <!-- 区域将在这里动态生成 -->
+            </div>
+        </div>
+
+        <!-- 右侧：信息面板 -->
+        <div class="side-panel">
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('npcs')">NPC 列表</div>
+                <div class="tab" onclick="switchTab('world')">世界信息</div>
+            </div>
+
+            <!-- NPC 列表 -->
+            <div class="npc-list" id="npcListPanel">
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-state-icon">🌍</div>
+                    <div>暂无 NPC</div>
+                    <div style="font-size: 12px; margin-top: 5px;">等待世界初始化...</div>
+                </div>
+                <div id="npcList"></div>
+            </div>
+
+            <!-- 世界信息 -->
+            <div class="world-info" id="worldInfoPanel" style="display: none;">
+                <div class="info-row">
+                    <span class="info-label">世界名称</span>
+                    <span class="info-value" id="worldName">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">世界描述</span>
+                    <span class="info-value" id="worldDesc">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">区域数量</span>
+                    <span class="info-value" id="zoneCount">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">活跃 NPC</span>
+                    <span class="info-value" id="activeNpcs">-</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">总事件数</span>
+                    <span class="info-value" id="totalEvents">-</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://192.168.10.226:8765';
+        let currentTab = 'npcs';
+        let worldData = null;
+        let npcsData = [];
+
+        // 角色名称映射
+        const roleNames = {
+            merchant: '商人',
+            guard: '守卫',
+            farmer: '农民',
+            scholar: '学者',
+            artisan: '工匠',
+            miner: '矿工',
+            healer: '治疗师',
+            barbarian: '野蛮人',
+            sage: '贤者',
+            wanderer: '流浪者'
+        };
+
+        // 状态名称映射
+        const statusNames = {
+            idle: '空闲',
+            working: '工作中',
+            traveling: '移动中',
+            socializing: '社交中',
+            resting: '休息中'
+        };
+
+        // 切换标签
+        function switchTab(tab) {
+            currentTab = tab;
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            document.getElementById('npcListPanel').style.display = tab === 'npcs' ? 'flex' : 'none';
+            document.getElementById('worldInfoPanel').style.display = tab === 'world' ? 'block' : 'none';
+        }
+
+        // 加载世界数据
+        async function loadWorld() {
+            try {
+                const res = await fetch(`${API_BASE}/api/world`);
+                const data = await res.json();
+                // FastAPI 返回直接是 WorldResponse 对象（不在 success 包装里）
+                if (data.id && data.zones) {
+                    worldData = data;
+                    renderWorldTime();
+                    renderZones();
+                    renderWorldInfo();
+                }
+            } catch (e) {
+                console.error('加载世界数据失败:', e);
+            }
+        }
+
+        // 加载 NPC 数据
+        async function loadNPCs() {
+            try {
+                const res = await fetch(`${API_BASE}/api/npc`);
+                const data = await res.json();
+                if (data.success) {
+                    npcsData = data.data;
+                    renderNPCs();
+                }
+            } catch (e) {
+                console.error('加载 NPC 数据失败:', e);
+            }
+        }
+
+        // 渲染世界时间
+        function renderWorldTime() {
+            if (!worldData) return;
+            const wt = worldData.world_time;
+            document.getElementById('year').textContent = wt.year;
+            document.getElementById('month').textContent = wt.month;
+            document.getElementById('day').textContent = wt.day;
+            document.getElementById('hour').textContent = String(wt.hour).padStart(2, '0');
+            document.getElementById('minute').textContent = String(wt.minute).padStart(2, '0');
+        }
+
+        // 渲染世界信息
+        function renderWorldInfo() {
+            if (!worldData) return;
+            document.getElementById('worldName').textContent = worldData.name;
+            document.getElementById('worldDesc').textContent = worldData.description;
+            document.getElementById('zoneCount').textContent = worldData.zones.length;
+            document.getElementById('activeNpcs').textContent = worldData.active_npcs;
+            document.getElementById('totalEvents').textContent = worldData.total_events;
+        }
+
+        // 渲染区域（地图）
+        function renderZones() {
+            if (!worldData || !worldData.zones) return;
+            
+            const container = document.getElementById('mapContainer');
+            const zones = worldData.zones;
+            
+            // 清空现有区域
+            container.innerHTML = '';
+            
+            // 计算位置（基于 bounds）
+            zones.forEach(zone => {
+                const bounds = zone.bounds;
+                const left = bounds.min_x;
+                const top = bounds.min_y;
+                const width = bounds.max_x - bounds.min_x;
+                const height = bounds.max_y - bounds.min_y;
+                
+                // 计算该区域的 NPC 数量
+                const npcCount = npcsData.filter(n => n.position && n.position.zone_id === zone.id).length;
+                
+                const zoneEl = document.createElement('div');
+                zoneEl.className = `zone zone-${zone.zone_type}`;
+                zoneEl.style.left = `${left}%`;
+                zoneEl.style.top = `${top}%`;
+                zoneEl.style.width = `${width}%`;
+                zoneEl.style.height = `${height}%`;
+                zoneEl.innerHTML = `
+                    <div class="zone-name">${zone.name}</div>
+                    <div class="zone-count">${npcCount} NPC${npcCount !== 1 ? 's' : ''}</div>
+                `;
+                zoneEl.title = zone.description;
+                container.appendChild(zoneEl);
+            });
+        }
+
+        // 渲染 NPC 列表
+        function renderNPCs() {
+            const container = document.getElementById('npcList');
+            const emptyState = document.getElementById('emptyState');
+            
+            if (!npcsData || npcsData.length === 0) {
+                container.innerHTML = '';
+                emptyState.style.display = 'flex';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+            container.innerHTML = npcsData.map(npc => `
+                <div class="npc-card">
+                    <div class="npc-header">
+                        <span class="npc-name">${npc.name}</span>
+                        <span class="npc-level">Lv.${npc.level}</span>
+                    </div>
+                    <div class="npc-role role-${npc.role}">${roleNames[npc.role] || npc.role}</div>
+                    <div>
+                        <span class="npc-status status-${npc.status}">${statusNames[npc.status] || npc.status}</span>
+                    </div>
+                    <div class="npc-location">📍 ${npc.position?.zone_id || '未知'}</div>
+                </div>
+            `).join('');
+        }
+
+        // 初始化
+        async function init() {
+            await loadWorld();
+            await loadNPCs();
+            
+            // 每 5 秒刷新一次数据
+            setInterval(async () => {
+                await loadWorld();
+                await loadNPCs();
+            }, 5000);
+        }
+
+        init();
+    </script>
+</body>
+</html>

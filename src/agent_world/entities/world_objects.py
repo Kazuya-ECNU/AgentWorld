@@ -1,0 +1,500 @@
+"""
+World Objects - 具体实体实现
+
+实现所有可交互物体：
+  - Stall         : 商人摊位
+  - FarmPlot      : 农田
+  - OreVein       : 矿脉
+  - BarCounter    : 酒馆吧台
+  - WorldObjectManager : 实体管理器
+"""
+
+import random
+from datetime import datetime, timedelta
+from typing import Optional
+
+from .base import (
+    WorldObject,
+    ObjectType,
+    ObjectState,
+    Affordance,
+    InteractionResult,
+)
+
+
+# === 具体实体类 ===
+
+class Stall(WorldObject):
+    """
+    商人摊位。
+
+    状态流转：
+      AVAILABLE → OCCUPIED (NPC 开始摆摊)
+      OCCUPIED → AVAILABLE (NPC 离开或交易完成)
+
+    行为：
+      - trade: NPC 在摊位上进行交易，获得金币
+    """
+
+    def __init__(self, zone_id: str, name: str = "摊位", **kwargs):
+        super().__init__(
+            object_type=ObjectType.STALL,
+            zone_id=zone_id,
+            name=name,
+            **kwargs
+        )
+        self.trades_completed = 0
+
+    def get_affordances(self) -> list[Affordance]:
+        if self.state == ObjectState.AVAILABLE:
+            return [
+                Affordance(action="trade", description="摆摊交易", energy_cost=10, duration_ticks=3),
+            ]
+        elif self.state == ObjectState.OCCUPIED:
+            return [
+                Affordance(action="continue_trade", description="继续交易", energy_cost=5, duration_ticks=2),
+            ]
+        return []
+
+    def can_interact(self, npc_id: str, action: str) -> tuple[bool, str]:
+        if self.state == ObjectState.BROKEN:
+            return False, "摊位损坏了"
+        if self.state == ObjectState.OCCUPIED and self.current_user != npc_id:
+            return False, f"摊位被 {self.current_user} 占用"
+        if action not in ["trade", "continue_trade"]:
+            return False, f"摊位不能执行动作: {action}"
+        return True, "可以交易"
+
+    def interact(self, npc_id: str, action: str) -> InteractionResult:
+        if self.state == ObjectState.AVAILABLE:
+            self.occupy(npc_id)
+
+        self.trades_completed += 1
+        loot = [f"金币+{random.randint(1, 5)}"]
+        description = f"完成了一笔交易，获得 {'、'.join(loot)}"
+
+        return InteractionResult(
+            success=True,
+            description=description,
+            loot=loot,
+            state_change=None,
+            next_available_at=None,
+        )
+
+
+class FarmPlot(WorldObject):
+    """
+    农田。
+
+    状态流转：
+      AVAILABLE (fallow) → OCCUPIED (planted)
+      OCCUPIED (planted) → 等待几个 tick → growing
+      growing → harvestable
+      harvestable → AVAILABLE (收获后回到 fallow)
+
+    行为：
+      - plant : 播种（需 fallow 状态）
+      - water : 浇水（需 planted 状态）
+      - harvest : 收获（需 harvestable 状态）
+    """
+
+    FALLOW = "fallow"
+    PLANTED = "planted"
+    GROWING = "growing"
+    HARVESTABLE = "harvestable"
+
+    def __init__(self, zone_id: str, name: str = "农田", **kwargs):
+        super().__init__(
+            object_type=ObjectType.FARM_PLOT,
+            zone_id=zone_id,
+            name=name,
+            **kwargs
+        )
+        self.growth_state = self.FALLOW
+        self.planted_at: datetime | None = None
+        self.growth_ticks = 0
+
+    def get_affordances(self) -> list[Affordance]:
+        if self.growth_state == self.FALLOW:
+            return [Affordance(action="plant", description="播种", energy_cost=15, duration_ticks=1)]
+        elif self.growth_state == self.PLANTED:
+            return [Affordance(action="water", description="浇水", energy_cost=5, duration_ticks=1)]
+        elif self.growth_state == self.GROWING:
+            return []
+        elif self.growth_state == self.HARVESTABLE:
+            return [Affordance(action="harvest", description="收获", energy_cost=10, duration_ticks=1)]
+        return []
+
+    def can_interact(self, npc_id: str, action: str) -> tuple[bool, str]:
+        if self.state == ObjectState.BROKEN:
+            return False, "农田损坏"
+        if self.state == ObjectState.OCCUPIED and self.current_user != npc_id:
+            return False, f"农田被 {self.current_user} 占用"
+        if self.growth_state == self.FALLOW and action != "plant":
+            return False, "需要先播种"
+        if self.growth_state == self.PLANTED and action != "water":
+            return False, "需要先浇水"
+        if self.growth_state == self.GROWING:
+            return False, "作物还在生长中"
+        if self.growth_state == self.HARVESTABLE and action != "harvest":
+            return False, "可以收获了"
+        return True, "可以操作"
+
+    def interact(self, npc_id: str, action: str) -> InteractionResult:
+        if action == "plant":
+            self.occupy(npc_id)
+            self.growth_state = self.PLANTED
+            self.planted_at = datetime.now()
+            self.growth_ticks = 0
+            return InteractionResult(
+                success=True,
+                description="播下了种子",
+                loot=[],
+                state_change=ObjectState.OCCUPIED,
+                next_available_at=None,
+            )
+        elif action == "water":
+            self.growth_state = self.GROWING
+            self.growth_ticks = 0
+            return InteractionResult(
+                success=True,
+                description="浇了水，作物开始生长",
+                loot=[],
+                state_change=None,
+                next_available_at=None,
+            )
+        elif action == "harvest":
+            self.growth_state = self.FALLOW
+            self.release()
+            self.planted_at = None
+            self.growth_ticks = 0
+            loot = ["农作物"]
+            return InteractionResult(
+                success=True,
+                description="收获了农作物",
+                loot=loot,
+                state_change=ObjectState.AVAILABLE,
+                next_available_at=None,
+            )
+        return InteractionResult(success=False, description="未知动作", loot=[])
+
+    def tick(self):
+        """每个游戏 tick 更新生长状态"""
+        if self.growth_state == self.GROWING:
+            self.growth_ticks += 1
+            if self.growth_ticks >= 3:
+                self.growth_state = self.HARVESTABLE
+                self.release()
+
+
+class OreVein(WorldObject):
+    """
+    矿脉。
+
+    状态流转：
+      AVAILABLE → OCCUPIED (开采中)
+      OCCUPIED → AVAILABLE (矿石耗尽前可重复)
+      DEPLETED (资源耗尽，无法使用)
+
+    行为：
+      - mine : 挖掘矿石
+    """
+
+    def __init__(self, zone_id: str, name: str = "矿脉", richness: float = 1.0, **kwargs):
+        super().__init__(
+            object_type=ObjectType.ORE_VEIN,
+            zone_id=zone_id,
+            name=name,
+            **kwargs
+        )
+        self.richness = richness  # 0.0~1.0，矿石丰富程度
+        self.total_mined = 0
+        self.max_mines = int(20 * richness)  # 资源上限
+
+    def get_affordances(self) -> list[Affordance]:
+        if self.state == ObjectState.AVAILABLE:
+            return [Affordance(action="mine", description="挖掘矿石", energy_cost=20, duration_ticks=2)]
+        elif self.state == ObjectState.OCCUPIED:
+            return [Affordance(action="continue_mine", description="继续挖掘", energy_cost=15, duration_ticks=2)]
+        return []
+
+    def can_interact(self, npc_id: str, action: str) -> tuple[bool, str]:
+        if self.state == ObjectState.DEPLETED:
+            return False, "矿脉已枯竭"
+        if self.state == ObjectState.OCCUPIED and self.current_user != npc_id:
+            return False, f"矿脉被 {self.current_user} 占用"
+        if self.total_mined >= self.max_mines:
+            self.state = ObjectState.DEPLETED
+            return False, "矿脉已枯竭"
+        return True, "可以挖掘"
+
+    def interact(self, npc_id: str, action: str) -> InteractionResult:
+        if self.state == ObjectState.AVAILABLE:
+            self.occupy(npc_id)
+
+        ores = ["铁矿石", "铜矿石", "煤矿", "石材"]
+        loot = [random.choice(ores)]
+        self.total_mined += 1
+
+        if self.total_mined >= self.max_mines:
+            self.state = ObjectState.DEPLETED
+            self.release()
+            return InteractionResult(
+                success=True,
+                description=f"挖掘了 {loot[0]}，矿脉已枯竭",
+                loot=loot,
+                state_change=ObjectState.DEPLETED,
+                next_available_at=None,
+            )
+
+        return InteractionResult(
+            success=True,
+            description=f"挖掘了 {loot[0]}",
+            loot=loot,
+            state_change=None,
+            next_available_at=None,
+        )
+
+
+class BarCounter(WorldObject):
+    """
+    酒馆吧台。
+
+    行为：
+      - drink : 喝酒（恢复体力）
+      - talk  : 闲聊（社交机会）
+    """
+
+    def __init__(self, zone_id: str, name: str = "吧台", **kwargs):
+        super().__init__(
+            object_type=ObjectType.BAR_COUNTER,
+            zone_id=zone_id,
+            name=name,
+            **kwargs
+        )
+
+    def get_affordances(self) -> list[Affordance]:
+        if self.state == ObjectState.AVAILABLE:
+            return [
+                Affordance(action="drink", description="喝酒休息", energy_cost=-15, duration_ticks=2),
+                Affordance(action="talk", description="闲聊社交", energy_cost=5, duration_ticks=2),
+            ]
+        elif self.state == ObjectState.OCCUPIED:
+            return [
+                Affordance(action="talk", description="闲聊社交", energy_cost=5, duration_ticks=2),
+            ]
+        return []
+
+    def can_interact(self, npc_id: str, action: str) -> tuple[bool, str]:
+        if self.state == ObjectState.LOCKED:
+            return False, "酒馆已关门"
+        return True, "可以使用吧台"
+
+    def interact(self, npc_id: str, action: str) -> InteractionResult:
+        if action == "drink":
+            self.occupy(npc_id)
+            return InteractionResult(
+                success=True,
+                description="喝了一杯，恢复了一些体力",
+                loot=["体力+15"],
+                state_change=ObjectState.OCCUPIED,
+                next_available_at=datetime.now() + timedelta(minutes=30),
+            )
+        elif action == "talk":
+            topics = ["最近的新闻", "天气", "镇上的八卦", "明天的计划"]
+            topic = random.choice(topics)
+            return InteractionResult(
+                success=True,
+                description=f"聊了聊{topic}",
+                loot=[],
+                state_change=None,
+                next_available_at=None,
+            )
+        return InteractionResult(success=False, description="未知动作", loot=[])
+
+
+
+# === 占位实体（实现缺失的 ObjectType）===
+
+class LibraryDesk(WorldObject):
+    def __init__(self, zone_id: str, name: str = "书桌", **kwargs):
+        super().__init__(object_type=ObjectType.LIBRARY_DESK, zone_id=zone_id, name=name, **kwargs)
+    def get_affordances(self) -> list[Affordance]:
+        return [Affordance(action="research", description="研究阅读", energy_cost=10, duration_ticks=3)]
+    def can_interact(self, npc_id: str, action: str) -> tuple[bool, str]:
+        return True, "可以使用"
+    def interact(self, npc_id: str, action: str) -> InteractionResult:
+        return InteractionResult(success=True, description="阅读了相关书籍", loot=[])
+
+class TempleAltar(WorldObject):
+    def __init__(self, zone_id: str, name: str = "祭坛", **kwargs):
+        super().__init__(object_type=ObjectType.TEMPLE_ALTAR, zone_id=zone_id, name=name, **kwargs)
+    def get_affordances(self) -> list[Affordance]:
+        return [Affordance(action="pray", description="祈祷", energy_cost=-10, duration_ticks=2)]
+    def can_interact(self, npc_id: str, action: str) -> tuple[bool, str]:
+        return True, "可以使用"
+    def interact(self, npc_id: str, action: str) -> InteractionResult:
+        return InteractionResult(success=True, description="祈祷后感到心神安宁", loot=["体力+10"])
+
+class BarracksEquipment(WorldObject):
+    def __init__(self, zone_id: str, name: str = "训练设施", **kwargs):
+        super().__init__(object_type=ObjectType.BARRACKS_EQUIPMENT, zone_id=zone_id, name=name, **kwargs)
+    def get_affordances(self) -> list[Affordance]:
+        return [Affordance(action="train", description="训练", energy_cost=15, duration_ticks=3)]
+    def can_interact(self, npc_id: str, action: str) -> tuple[bool, str]:
+        return True, "可以使用"
+    def interact(self, npc_id: str, action: str) -> InteractionResult:
+        return InteractionResult(success=True, description="训练完毕", loot=[])
+
+class ForestHuntingGround(WorldObject):
+    def __init__(self, zone_id: str, name: str = "狩猎场", **kwargs):
+        super().__init__(object_type=ObjectType.FOREST_HUNTING_GROUND, zone_id=zone_id, name=name, **kwargs)
+    def get_affordances(self) -> list[Affordance]:
+        return [Affordance(action="hunt", description="狩猎", energy_cost=20, duration_ticks=3)]
+    def can_interact(self, npc_id: str, action: str) -> tuple[bool, str]:
+        return True, "可以使用"
+    def interact(self, npc_id: str, action: str) -> InteractionResult:
+        return InteractionResult(success=True, description=f"狩猎获得 {random.choice(['兽皮','野兔','野鸡肉','蘑菇'])}", loot=[])
+
+
+# === 实体管理器 ===
+
+class WorldObjectManager:
+    """
+    世界实体管理器。
+
+    负责：
+    - 创建和存储世界中的所有实体
+    - 按 zone_id 查询可用实体
+    - 按类型查询可用实体
+    - 全局 tick（更新实体状态，如农田生长）
+    """
+
+    def __init__(self):
+        self._objects: dict[str, WorldObject] = {}
+
+    # === CRUD ===
+
+    def add(self, obj: WorldObject) -> WorldObject:
+        self._objects[obj.id] = obj
+        return obj
+
+    def get(self, object_id: str) -> WorldObject | None:
+        return self._objects.get(object_id)
+
+    def remove(self, object_id: str):
+        if object_id in self._objects:
+            del self._objects[object_id]
+
+    def all(self) -> list[WorldObject]:
+        return list(self._objects.values())
+
+    # === 查询 ===
+
+    def find_by_zone(self, zone_id: str) -> list[WorldObject]:
+        return [o for o in self._objects.values() if o.zone_id == zone_id]
+
+    def find_by_type(self, object_type: ObjectType) -> list[WorldObject]:
+        return [o for o in self._objects.values() if o.object_type == object_type]
+
+    def find_available(
+        self,
+        zone_id: str | None = None,
+        object_type: ObjectType | None = None,
+    ) -> list[WorldObject]:
+        """
+        查找可用的实体。
+        
+        Args:
+            zone_id: 限制在特定 zone
+            object_type: 限制特定类型
+        """
+        results = self._objects.values()
+        if zone_id:
+            results = [o for o in results if o.zone_id == zone_id]
+        if object_type:
+            results = [o for o in results if o.object_type == object_type]
+        return [o for o in results if o.is_available()]
+
+    def find_nearest_available(
+        self,
+        from_zone_id: str,
+        object_type: ObjectType,
+        zone_connections: dict[str, list[str]],
+    ) -> WorldObject | None:
+        """
+        从指定 zone 出发，找最近的可用实体。
+        
+        使用 BFS 搜索相邻 zone。
+        """
+        from collections import deque
+        
+        if zone_id == from_zone_id:
+            available = self.find_available(zone_id=from_zone_id, object_type=object_type)
+            if available:
+                return random.choice(available)
+
+        visited = {from_zone_id}
+        queue = deque([(from_zone_id, 0)])
+
+        while queue:
+            current_zone, distance = queue.popleft()
+            for neighbor in zone_connections.get(current_zone, []):
+                if neighbor in visited:
+                    continue
+                visited.add(neighbor)
+                available = self.find_available(zone_id=neighbor, object_type=object_type)
+                if available:
+                    return random.choice(available)
+                queue.append((neighbor, distance + 1))
+        return None
+
+    # === 生命周期 ===
+
+    def tick(self):
+        """全局 tick，更新所有实体的状态"""
+        for obj in self._objects.values():
+            if hasattr(obj, "tick"):
+                obj.tick()
+
+    # === 初始化预设世界 ===
+
+    def init_default_world(self, zones: list[dict]):
+        """
+        根据 world zones 创建默认实体。
+        
+        zones: list of {id, zone_type, ...}
+        """
+        zone_types_map = {
+            "market": (ObjectType.STALL, 2),
+            "farm": (ObjectType.FARM_PLOT, 3),
+            "mine": (ObjectType.ORE_VEIN, 2),
+            "tavern": (ObjectType.BAR_COUNTER, 1),
+            "library": (ObjectType.LIBRARY_DESK, 2),
+            "temple": (ObjectType.TEMPLE_ALTAR, 1),
+            "barracks": (ObjectType.BARRACKS_EQUIPMENT, 2),
+            "forest": (ObjectType.FOREST_HUNTING_GROUND, 2),
+        }
+
+        for zone in zones:
+            zone_id = zone.get("id", "")
+            zone_type = zone.get("zone_type", "")
+            if zone_type in zone_types_map:
+                obj_type, count = zone_types_map[zone_type]
+                for i in range(count):
+                    name = f"{zone_id}_{obj_type.value}_{i+1}"
+                    if obj_type == ObjectType.STALL:
+                        obj = Stall(zone_id=zone_id, name=name)
+                    elif obj_type == ObjectType.FARM_PLOT:
+                        obj = FarmPlot(zone_id=zone_id, name=name)
+                    elif obj_type == ObjectType.ORE_VEIN:
+                        obj = OreVein(zone_id=zone_id, name=name, richness=0.8)
+                    elif obj_type == ObjectType.BAR_COUNTER:
+                        obj = BarCounter(zone_id=zone_id, name=name)
+                    else:
+                        # 跳过未知类型，不创建抽象 WorldObject
+                        continue
+                    self.add(obj)
+
+    def to_dict(self) -> list[dict]:
+        return [o.to_dict() for o in self._objects.values()]
