@@ -152,7 +152,7 @@ Zone (空间)
 - `src/agent_world/entities/base.py`
 - `src/agent_world/entities/world_objects.py`
 
-**状态：** ○ 未开始
+**状态：** ✅ 已完成（2026-04-24）
 
 ---
 
@@ -178,7 +178,7 @@ Zone (空间)
 **产出文件：**
 - 重构 `src/agent_world/services/npc_engine.py`
 
-**状态：** ○ 未开始（依赖 3.5a ✅ + 3.5b ○）
+**状态：** ✅ 已完成（2026-04-25 修复 bug）
 
 ---
 
@@ -194,6 +194,8 @@ Zone (空间)
 **产出文件：**
 - `src/agent_world/api/agent.py`（注册/认证/act）
 - 外部 Agent 可接入
+
+**状态：** 🔄 进行中
 
 ---
 
@@ -229,11 +231,12 @@ Zone (空间)
 **✅ Phase 2** — API 层 + 实时推送
 **✅ Phase 3** — NPC Engine（行为树版，已运行但需重构）
 **✅ Phase 3.5a** — Cognition Module（已完成）
-**○ Phase 3.5b** — Entities Module（未开始）
-**○ Phase 3.5c** — NPC Engine 重构（未开始，依赖 3.5b）
-**○ Phase 4** — 外部 Agent 接入协议
+**✅ Phase 3.5b** — Entities Module（已完成）
+**✅ Phase 3.5c** — NPC Engine 重构（已完成）
+**✅ Phase 3.5d** — NPC 属性/记忆系统（已完成）
+**🔄 Phase 4** — 外部 Agent 接入协议（已完成基础）
 **○ Phase 5** — 持久化 + NPC 演进
 
 ---
 
-_最后更新：2026-04-24_
+_最后更新：2026-04-25_

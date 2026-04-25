@@ -25,37 +25,54 @@ class GoalRule:
 # 规则集合（Role -> [GoalRules]）
 ROLE_RULES: dict[str, list[GoalRule]] = {
     "merchant": [
+        GoalRule("天黑回家", lambda s: s.get("is_night", False), GoalType.REST, priority=15),
         GoalRule("能量低需要休息", lambda s: s.get("energy", 100) < 30, GoalType.REST, priority=10),
         GoalRule("商人去摆摊", lambda s: True, GoalType.TRADE, priority=5),
         GoalRule("商人探索新市场", lambda s: s.get("energy", 100) > 60, GoalType.EXPLORE, priority=3),
     ],
     "farmer": [
+        GoalRule("天黑不干活", lambda s: s.get("is_night", False), GoalType.REST, priority=15),
         GoalRule("能量低需要休息", lambda s: s.get("energy", 100) < 30, GoalType.REST, priority=10),
         GoalRule("农民去农场干活", lambda s: True, GoalType.FARM, priority=7),
         GoalRule("农民休息", lambda s: s.get("energy", 100) > 80 and s.get("last_action") == "farm", GoalType.REST, priority=4),
     ],
     "miner": [
+        GoalRule("夜间不挖矿", lambda s: s.get("is_night", False), GoalType.REST, priority=15),
         GoalRule("能量低需要休息", lambda s: s.get("energy", 100) < 35, GoalType.REST, priority=10),
         GoalRule("矿工去挖矿", lambda s: True, GoalType.MINE, priority=6),
     ],
     "guard": [
-        GoalRule("守卫巡逻", lambda s: True, GoalType.WORK, priority=6),
+        GoalRule("守卫夜间巡逻", lambda s: s.get("is_night", False), GoalType.WORK, priority=14),
+        GoalRule("守卫白天巡逻", lambda s: True, GoalType.WORK, priority=6),
         GoalRule("守卫休息", lambda s: s.get("energy", 100) < 25, GoalType.REST, priority=10),
     ],
     "scholar": [
+        GoalRule("夜间休息", lambda s: s.get("is_night", False), GoalType.REST, priority=15),
         GoalRule("学者研究", lambda s: True, GoalType.WORK, priority=6),
         GoalRule("学者社交", lambda s: s.get("energy", 100) > 50, GoalType.SOCIALIZE, priority=4),
         GoalRule("学者休息", lambda s: s.get("energy", 100) < 30, GoalType.REST, priority=10),
     ],
     "healer": [
+        GoalRule("夜间休息", lambda s: s.get("is_night", False), GoalType.REST, priority=15),
         GoalRule("治疗师治疗", lambda s: True, GoalType.WORK, priority=6),
         GoalRule("治疗师休息", lambda s: s.get("energy", 100) < 30, GoalType.REST, priority=10),
     ],
     "wanderer": [
-        GoalRule("流浪者探索", lambda s: True, GoalType.EXPLORE, priority=7),
+        GoalRule("流浪者探索", lambda s: not s.get("is_night", False), GoalType.EXPLORE, priority=7),
+        GoalRule("流浪者夜间休息", lambda s: s.get("is_night", False), GoalType.REST, priority=14),
         GoalRule("流浪者社交", lambda s: s.get("energy", 100) > 50, GoalType.SOCIALIZE, priority=4),
         GoalRule("流浪者休息", lambda s: s.get("energy", 100) < 35, GoalType.REST, priority=10),
     ],
+}
+
+ROLE_GOAL_PLANS: dict[str, list[str]] = {
+    GoalType.TRADE: ["移动到 market", "摆摊交易"],
+    GoalType.FARM: ["移动到 farm", "在农场耕作"],
+    GoalType.MINE: ["移动到 mine", "挖掘矿石"],
+    GoalType.REST: ["移动到 tavern", "在酒馆休息"],
+    GoalType.SOCIALIZE: ["移动到 tavern", "在酒馆聊天"],
+    GoalType.EXPLORE: ["探索相邻区域"],
+    GoalType.WORK: ["执行工作"],
 }
 
 # 默认规则（未匹配到 Role 时使用）
@@ -98,6 +115,7 @@ class FallbackEngine:
                         goal=rule.goal_type,
                         reason=f"[规则兜底] {rule.name}",
                         urgency=min(1.0, rule.priority / 10.0),
+                        plan=ROLE_GOAL_PLANS.get(rule.goal_type, []),
                     )
             except Exception:
                 continue

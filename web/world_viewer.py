@@ -125,14 +125,16 @@ async def broadcast_tick_results(results: list):
 
 from agent_world.api import world as world_api
 from agent_world.api import npc as npc_api
+from agent_world.api import agent as agent_api
 
 app.include_router(world_api.router, prefix="/api")
 app.include_router(npc_api.router, prefix="/api")
+app.include_router(agent_api.router)  # router already has /api/agent prefix
 
 
 @app.get("/")
 async def root():
-    return {"msg": "Agent World API", "version": "0.1.0", "phase": 3}
+    return {"msg": "Agent World API", "version": "0.1.0", "phase": 4}
 
 
 # === 后台任务：NPC Engine ===

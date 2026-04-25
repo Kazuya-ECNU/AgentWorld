@@ -429,10 +429,10 @@ class WorldObjectManager:
         """
         from collections import deque
         
-        if zone_id == from_zone_id:
-            available = self.find_available(zone_id=from_zone_id, object_type=object_type)
-            if available:
-                return random.choice(available)
+        # 首先检查当前 zone 是否有可用实体
+        available = self.find_available(zone_id=from_zone_id, object_type=object_type)
+        if available:
+            return random.choice(available)
 
         visited = {from_zone_id}
         queue = deque([(from_zone_id, 0)])
@@ -458,6 +458,62 @@ class WorldObjectManager:
                 obj.tick()
 
     # === 初始化预设世界 ===
+
+    def _db_save(self, obj: WorldObject):
+        """Save single object to DB"""
+        from agent_world.db import get_session
+        with get_session() as conn:
+            cursor = conn.cursor()
+            data = obj.to_db_dict()
+            try:
+                cursor.execute("""
+                    INSERT OR REPLACE INTO world_objects
+                    (id, name, object_type, zone_id, position_x, position_y, state,
+                     current_user, capacity, current_goods, growth_stage, resources_left, uses_left, metadata, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """, (
+                    data["id"], data["name"], data["object_type"], data["zone_id"],
+                    data["position_x"], data["position_y"], data["state"],
+                    data["current_user"], data["capacity"], data["current_goods"],
+                    data["growth_stage"], data["resources_left"], data["uses_left"], data["metadata"]
+                ))
+                print(f"[WorldObjectManager] Saved {obj.name} to DB, state={obj.state.value}")
+            except Exception as e:
+                print(f"[WorldObjectManager] DB save error for {obj.name}: {e}")
+
+    def _db_load(self):
+        """Load all objects from DB"""
+        from agent_world.db import get_session
+        self._objects = {}
+        try:
+            with get_session() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM world_objects")
+                rows = cursor.fetchall()
+                print(f"[WorldObjectManager] Found {len(rows)} objects in DB")
+                for row in rows:
+                    data = {
+                        "id": row[0],
+                        "name": row[1],
+                        "object_type": row[2],
+                        "zone_id": row[3],
+                        "position_x": row[4],
+                        "position_y": row[5],
+                        "state": row[6],
+                        "current_user": row[7],
+                        "capacity": row[8],
+                        "current_goods": row[9],
+                        "growth_stage": row[10],
+                        "resources_left": row[11],
+                        "uses_left": row[12],
+                        "metadata": row[13],
+                    }
+                    obj = WorldObject.from_db_dict(data)
+                    self._objects[obj.id] = obj
+                print(f"[WorldObjectManager] Loaded {len(self._objects)} objects from DB")
+        except Exception as e:
+            print(f"[WorldObjectManager] DB load error: {e}, starting fresh")
+            self._objects = {}
 
     def init_default_world(self, zones: list[dict]):
         """

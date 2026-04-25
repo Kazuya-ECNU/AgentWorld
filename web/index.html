@@ -114,6 +114,21 @@
         .zone-barracks { background: linear-gradient(135deg, #e74c3c, #c0392b); }
         .zone-outskirts { background: linear-gradient(135deg, #95a5a6, #7f8c8d); }
 
+        /* Agent 标记 */
+        .agent-marker {
+            position: absolute;
+            font-size: 20px;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            animation: pulse 2s infinite;
+            cursor: pointer;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 0.8; transform: translate(-50%, -50%) scale(1.1); }
+        }
+
         /* 右侧面板 */
         .side-panel {
             width: 320px;
@@ -211,6 +226,12 @@
             font-size: 11px;
             color: #666;
             margin-top: 5px;
+        }
+
+        .npc-vitality {
+            font-size: 11px;
+            color: #27ae60;
+            margin-top: 2px;
         }
 
         /* 世界信息 */
@@ -321,9 +342,11 @@
             <div class="panel-header">
                 <div class="panel-title">🗺️ 世界地图</div>
                 <div class="world-time">
-                    第 <span id="year">1</span> 年 <span id="month">1</span> 月 <span id="day">1</span> 日
+                    <span id="season_emoji">🌱</span> <span id="season_text">春</span>
+                    &nbsp;第 <span id="year">1</span> 年 <span id="month">1</span> 月 <span id="day">1</span> 日
                     &nbsp;&nbsp;
                     <span id="hour">08</span>:<span id="minute">00</span>
+                    &nbsp;<span id="time_of_day" style="color:#aaa;">白天</span>
                 </div>
             </div>
             <div class="map-container" id="mapContainer">
@@ -334,8 +357,10 @@
         <!-- 右侧：信息面板 -->
         <div class="side-panel">
             <div class="tabs">
-                <div class="tab active" onclick="switchTab('npcs')">NPC 列表</div>
-                <div class="tab" onclick="switchTab('world')">世界信息</div>
+                <div class="tab active" onclick="switchTab('npcs')">NPC</div>
+                <div class="tab" onclick="switchTab('agents')">Agent</div>
+                <div class="tab" onclick="switchTab('objects')">物体</div>
+                <div class="tab" onclick="switchTab('world')">信息</div>
             </div>
 
             <!-- NPC 列表 -->
@@ -346,6 +371,25 @@
                     <div style="font-size: 12px; margin-top: 5px;">等待世界初始化...</div>
                 </div>
                 <div id="npcList"></div>
+            </div>
+
+            <!-- 外部 Agent 列表 -->
+            <div class="npc-list" id="agentsListPanel" style="display: none;">
+                <div class="empty-state" id="emptyAgentsState">
+                    <div class="empty-state-icon">🤖</div>
+                    <div>暂无外部 Agent</div>
+                    <div style="font-size: 12px; margin-top: 5px;">Agent 通过 API 注册...</div>
+                </div>
+                <div id="agentsList"></div>
+            </div>
+
+            <!-- 物体列表 -->
+            <div class="npc-list" id="objectsListPanel" style="display: none;">
+                <div class="empty-state" id="emptyObjectsState">
+                    <div class="empty-state-icon">📦</div>
+                    <div>暂无物体数据</div>
+                </div>
+                <div id="objectsList"></div>
             </div>
 
             <!-- 世界信息 -->
@@ -379,6 +423,8 @@
         let currentTab = 'npcs';
         let worldData = null;
         let npcsData = [];
+        let agentsData = [];
+        let objectsData = [];
 
         // 角色名称映射
         const roleNames = {
@@ -410,6 +456,8 @@
             event.target.classList.add('active');
             
             document.getElementById('npcListPanel').style.display = tab === 'npcs' ? 'flex' : 'none';
+            document.getElementById('agentsListPanel').style.display = tab === 'agents' ? 'flex' : 'none';
+            document.getElementById('objectsListPanel').style.display = tab === 'objects' ? 'flex' : 'none';
             document.getElementById('worldInfoPanel').style.display = tab === 'world' ? 'block' : 'none';
         }
 
@@ -444,6 +492,101 @@
             }
         }
 
+        // 加载外部 Agent 数据
+        async function loadAgents() {
+            try {
+                const res = await fetch(`${API_BASE}/api/agent/agents`);
+                const data = await res.json();
+                if (data.success) {
+                    agentsData = data.data;
+                    renderAgents();
+                    renderZones();  // 重新渲染地图上的 agent 标记
+                }
+            } catch (e) {
+                console.error('加载 Agent 数据失败:', e);
+            }
+        }
+
+        // 加载物体数据
+        async function loadObjects() {
+            try {
+                // 物体数据需要通过 agent API 获取（因为 world API 没有返回）
+                const res = await fetch(`${API_BASE}/api/agent/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: '__viewer__', role: 'explorer' })
+                });
+                const data = await res.json();
+                if (data.api_key) {
+                    const worldRes = await fetch(`${API_BASE}/api/agent/world`, {
+                        headers: { 'X-Api-Key': data.api_key }
+                    });
+                    const worldData = await worldRes.json();
+                    if (worldData.objects) {
+                        objectsData = worldData.objects;
+                        renderObjects();
+                        renderZones();  // 重新渲染地图上的物体状态
+                    }
+                }
+            } catch (e) {
+                console.error('加载物体数据失败:', e);
+            }
+        }
+
+        // 渲染 Agent 列表
+        function renderAgents() {
+            const container = document.getElementById('agentsList');
+            const emptyState = document.getElementById('emptyAgentsState');
+            
+            if (!agentsData || agentsData.length === 0) {
+                container.innerHTML = '';
+                emptyState.style.display = 'flex';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+            container.innerHTML = agentsData.map(agent => `
+                <div class="npc-card">
+                    <div class="npc-header">
+                        <span class="npc-name">🤖 ${agent.name}</span>
+                        <span class="npc-level">${agent.role}</span>
+                    </div>
+                    <div>
+                        <span class="npc-status status-working">在线</span>
+                    </div>
+                    <div class="npc-location">📍 ${agent.position?.zone_id || '未知'}</div>
+                    ${agent.inventory && agent.inventory.length > 0 ? `<div class="npc-location">🎒 ${agent.inventory.join(', ')}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        // 渲染物体列表
+        function renderObjects() {
+            const container = document.getElementById('objectsList');
+            const emptyState = document.getElementById('emptyObjectsState');
+            
+            if (!objectsData || objectsData.length === 0) {
+                container.innerHTML = '';
+                emptyState.style.display = 'flex';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+            container.innerHTML = objectsData.map(obj => `
+                <div class="npc-card">
+                    <div class="npc-header">
+                        <span class="npc-name">${obj.name}</span>
+                        <span class="npc-level">${obj.object_type}</span>
+                    </div>
+                    <div>
+                        <span class="npc-status status-${obj.state === 'available' ? 'idle' : 'working'}">${obj.state === 'available' ? '空闲' : '占用中'}</span>
+                    </div>
+                    <div class="npc-location">📍 ${obj.zone_id}</div>
+                    ${obj.current_user ? `<div class="npc-location">👤 占用者: ${obj.current_user.slice(0,8)}...</div>` : ''}
+                </div>
+            `).join('');
+        }
+
         // 渲染世界时间
         function renderWorldTime() {
             if (!worldData) return;
@@ -453,6 +596,21 @@
             document.getElementById('day').textContent = wt.day;
             document.getElementById('hour').textContent = String(wt.hour).padStart(2, '0');
             document.getElementById('minute').textContent = String(wt.minute).padStart(2, '0');
+            
+            // 季节和时段显示
+            const month = wt.month;
+            const hour = wt.hour;
+            const seasons = {1:['🌱','春'],2:['🌱','春'],3:['🌱','春'],4:['☀️','夏'],5:['☀️','夏'],6:['☀️','夏'],7:['🍂','秋'],8:['🍂','秋'],9:['🍂','秋'],10:['❄️','冬'],11:['❄️','冬'],12:['❄️','冬']};
+            const [emoji, sname] = seasons[month] || ['🌱','春'];
+            document.getElementById('season_emoji').textContent = emoji;
+            document.getElementById('season_text').textContent = sname;
+            
+            const tod = (5<=hour&&hour<8)?'黎明':(8<=hour&&hour<17)?'白天':(17<=hour&&hour<20)?'黄昏':'夜间';
+            document.getElementById('time_of_day').textContent = tod;
+            
+            // 地图夜间效果
+            const isNight = hour >= 20 || hour < 5;
+            document.getElementById('mapContainer').style.opacity = isNight ? '0.75' : '1';
         }
 
         // 渲染世界信息
@@ -492,13 +650,34 @@
                 zoneEl.style.top = `${top}%`;
                 zoneEl.style.width = `${width}%`;
                 zoneEl.style.height = `${height}%`;
+                
+                // 计算该区域的 agents
+                const agentCount = agentsData.filter(a => a.position && a.position.zone_id === zone.id).length;
+                
                 zoneEl.innerHTML = `
                     <div class="zone-name">${zone.name}</div>
-                    <div class="zone-count">${npcCount} NPC${npcCount !== 1 ? 's' : ''}</div>
+                    <div class="zone-count">${npcCount} NPC${npcCount !== 1 ? 's' : ''}${agentCount > 0 ? ` | 🤖 ${agentCount}` : ''}</div>
                 `;
                 zoneEl.title = zone.description;
                 container.appendChild(zoneEl);
             });
+            
+            // 渲染 Agent 标记
+            if (agentsData && agentsData.length > 0) {
+                agentsData.forEach(agent => {
+                    if (!agent.position) return;
+                    const zone = zones.find(z => z.id === agent.position.zone_id);
+                    if (!zone) return;
+                    
+                    const agentEl = document.createElement('div');
+                    agentEl.className = 'agent-marker';
+                    agentEl.style.left = `${agent.position.x}%`;
+                    agentEl.style.top = `${agent.position.y}%`;
+                    agentEl.innerHTML = '🤖';
+                    agentEl.title = `Agent: ${agent.name}`;
+                    container.appendChild(agentEl);
+                });
+            }
         }
 
         // 渲染 NPC 列表
@@ -524,6 +703,7 @@
                         <span class="npc-status status-${npc.status}">${statusNames[npc.status] || npc.status}</span>
                     </div>
                     <div class="npc-location">📍 ${npc.position?.zone_id || '未知'}</div>
+                    ${npc.vitality !== undefined ? `<div class="npc-vitality">⚡ ${Math.round(npc.vitality)}</div>` : ''}
                 </div>
             `).join('');
         }
@@ -532,11 +712,14 @@
         async function init() {
             await loadWorld();
             await loadNPCs();
+            await loadAgents();
+            await loadObjects();
             
             // 每 5 秒刷新一次数据
             setInterval(async () => {
                 await loadWorld();
                 await loadNPCs();
+                await loadAgents();
             }, 5000);
         }
 

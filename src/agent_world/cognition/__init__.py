@@ -14,6 +14,7 @@ Files:
 
 from .persona import PersonaTags
 from .memory import MemoryStore, MemoryEntry
+from .memory_manager import MemoryManager
 from .context import ContextBuilder
 from .reasoner import GoalReasoner, GoalOutput
 from .fallbacks import FallbackEngine, RULE_GOALS
@@ -22,6 +23,7 @@ __all__ = [
     "PersonaTags",
     "MemoryStore",
     "MemoryEntry",
+    "MemoryManager",
     "ContextBuilder",
     "GoalReasoner",
     "GoalOutput",

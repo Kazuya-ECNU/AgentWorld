@@ -74,6 +74,32 @@ class WorldTime(BaseModel):
             "minute": self.minute
         }
 
+    def get_time_of_day(self) -> str:
+        """返回 'dawn' | 'day' | 'dusk' | 'night' | 'midnight'"""
+        h = self.hour
+        if 5 <= h < 8:    return "dawn"
+        if 8 <= h < 17:   return "day"
+        if 17 <= h < 20:  return "dusk"
+        if 20 <= h < 24:  return "night"
+        return "midnight"
+
+    def is_night(self) -> bool:
+        return self.hour >= 20 or self.hour < 5
+
+    def get_season(self) -> str:
+        """返回 'spring' | 'summer' | 'autumn' | 'winter'"""
+        season_map = {1: "spring", 2: "spring", 3: "spring",
+                      4: "summer", 5: "summer", 6: "summer",
+                      7: "autumn", 8: "autumn", 9: "autumn",
+                      10: "winter", 11: "winter", 12: "winter"}
+        return season_map.get(self.month, "spring")
+
+    def to_display_str(self) -> str:
+        """如 '春·第 3 天 14:30'"""
+        seasons = {"spring": "春", "summer": "夏", "autumn": "秋", "winter": "冬"}
+        season_name = seasons.get(self.get_season(), "春")
+        return f"{season_name}·第 {self.day} 天 {self.hour:02d}:{self.minute:02d}"
+
 
 class World(BaseModel):
     """整个游戏世界"""
@@ -94,6 +120,12 @@ class World(BaseModel):
     # 创建时间
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
+
+    def is_night(self) -> bool:
+        return self.world_time.is_night()
+
+    def get_time_str(self) -> str:
+        return self.world_time.to_display_str()
 
 
 # 默认世界模板

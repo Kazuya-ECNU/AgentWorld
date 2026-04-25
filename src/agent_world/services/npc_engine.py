@@ -28,6 +28,8 @@ from agent_world.models.world import World, Zone, DEFAULT_ZONES
 from agent_world.cognition import (
     PersonaTags,
     MemoryStore,
+    MemoryEntry,
+    MemoryManager,
     ContextBuilder,
     GoalReasoner,
     GoalOutput,
@@ -35,7 +37,6 @@ from agent_world.cognition import (
     memory as cognition_memory,
 )
 from agent_world.entities import (
-    WorldObjectManager,
     ObjectType,
     Stall,
     FarmPlot,
@@ -111,8 +112,12 @@ class NPCEngine:
         self.reasoner = GoalReasoner() if llm_available else None
         self.fallback = FallbackEngine()
 
-        # 实体模块
-        self.entity_manager = WorldObjectManager()
+        # 实体模块（使用共享管理器）
+        from agent_world.entities import get_entity_manager
+        self.entity_manager = get_entity_manager()
+
+        # 记忆管理器
+        self.memory_manager = MemoryManager()
 
     def add_listener(self, callback):
         """添加 tick 回调（用于 WebSocket 广播）"""
@@ -128,10 +133,12 @@ class NPCEngine:
         """
         # 构建 NPC 状态字典（给 fallback 用）
         state_dict = {
-            "energy": getattr(npc, "energy", 80),
+            "energy": npc.vitality if hasattr(npc, 'vitality') else getattr(npc, "energy", 80),
             "inventory": list(npc.inventory),
             "position": npc.position.zone_id,
             "role": npc.role.value,
+            "time_of_day": world.get_time_of_day() if hasattr(world, 'get_time_of_day') else "day",
+            "is_night": world.is_night() if hasattr(world, 'is_night') else False,
         }
 
         # 尝试 LLM 推理
@@ -187,6 +194,7 @@ class NPCEngine:
         npc: NPC,
         plan_step: str,
         world: World,
+        current_goal: GoalOutput | None = None,
     ) -> tuple[str, str]:
         """
         执行单个 Plan 步骤。
@@ -199,7 +207,7 @@ class NPCEngine:
         # === 移动相关 ===
         if any(kw in step for kw in ["移动到", "前往", "走到", "出发去"]):
             # 提取目标 zone
-            zone_name = step.split("到")[-1] if "到" in step else ""
+            zone_name = step.split("到")[-1].strip() if "到" in step else ""
             target_zone = self._find_zone_by_name(world, zone_name)
             if target_zone:
                 npc.position.zone_id = target_zone.id
@@ -209,7 +217,7 @@ class NPCEngine:
 
         # === 交易 ===
         if "交易" in step or "摆摊" in step:
-            obj_type = GOAL_TO_OBJECTS.get(npc.current_goal.goal if npc.current_goal else "")
+            obj_type = GOAL_TO_OBJECTS.get(current_goal.goal if current_goal else "")
             if obj_type:
                 obj = self.entity_manager.find_nearest_available(
                     from_zone_id=npc.position.zone_id,
@@ -304,6 +312,7 @@ class NPCEngine:
 
     async def tick(self):
         """执行一次 tick"""
+        print(f"[TICK] Starting tick at {datetime.now().isoformat()}")
         with get_session() as conn:
             npc_db = NPCDB(conn)
             world_db = WorldDB(conn)
@@ -316,9 +325,10 @@ class NPCEngine:
 
             # 如果实体管理器为空，用 world zones 初始化
             if not self.entity_manager.all():
+                from agent_world.entities import init_entity_manager
                 zone_dicts = [z.model_dump() for z in world.zones]
-                self.entity_manager.init_default_world(zone_dicts)
-
+                init_entity_manager(zone_dicts)
+            
             # 全局实体 tick（农田生长等）
             self.entity_manager.tick()
 
@@ -335,34 +345,47 @@ class NPCEngine:
                 description = ""
                 memory_event = None
 
-                # === 决策：是否需要新的 Goal ===
-                need_new_goal = (
-                    npc_state.current_goal is None
-                    or npc_state.plan_index >= len(npc_state.current_plan)
-                    or npc_state.goal_cooldown > 0
-                )
-
-                if need_new_goal and npc_state.goal_cooldown <= 0:
+                # === 决策：是否需要推理新 Goal ===
+                # plan 执行完毕（exhausted）且 cooldown 已过，才重新推理
+                plan_exhausted = npc_state.plan_index >= len(npc_state.current_plan)
+                if plan_exhausted and npc_state.goal_cooldown <= 0:
+                    # 需要新 goal 且可以推理
                     old_goal = npc_state.current_goal
                     npc_state.current_goal = self._infer_goal(npc, world)
                     npc_state.last_goal_reason = npc_state.current_goal.reason
-                    npc_state.plan = npc_state.current_goal.plan or [npc_state.current_goal.goal]
+                    npc_state.current_plan = npc_state.current_goal.plan or [npc_state.current_goal.goal]
                     npc_state.plan_index = 0
-                    npc_state.goal_cooldown = 3  # 3 tick 后再重新推理
-
-                    if old_goal is None or old_goal.goal != npc_state.current_goal.goal:
-                        memory_event = f"决定去{npc_state.current_goal.goal}，原因：{npc_state.current_goal.reason[:20]}"
-
-                # === 执行当前 Plan 步骤 ===
-                if npc_state.current_goal and npc_state.plan_index < len(npc_state.current_plan):
-                    step = npc_state.current_plan[npc_state.plan_index]
-                    description, mem_ev = self._execute_plan_step(npc, step, world)
-                    memory_event = mem_ev or memory_event
-                    npc_state.plan_index += 1
-                else:
-                    # 无事可做，idle
+                    npc_state.goal_cooldown = 3
+                    memory_event = None  # 不记录 goal 推理记忆，只记录执行结果
+                elif plan_exhausted:
+                    # plan 执行完毕但 cooldown 未过，保持 idle
                     description = "四处观望"
                     npc_state.current_goal = None
+                    memory_event = None
+                
+                # === 执行当前 Plan 步骤 ===
+                _goal = npc_state.current_goal
+                _idx = npc_state.plan_index
+                _plan = npc_state.current_plan
+                _exec_cond = _goal is not None and _idx < len(_plan)
+                
+                if _exec_cond:
+                    step = _plan[_idx]
+                    description, mem_ev = self._execute_plan_step(npc, step, world, current_goal=_goal)
+                    memory_event = f"执行步骤{_idx}:{step} 结果:{description}"
+                    npc_state.plan_index += 1
+                    
+                    # 如果是交互步骤（step index >= 1），说明已到达目标区域
+                    # 交互成功后设置较长冷却，避免反复移动
+                    if _idx >= 1:
+                        npc_state.goal_cooldown = 15  # 15 ticks 冷却，期间留在原地重复交互
+                        npc_state.current_goal = None  # 留在原地，但不复位 plan_index
+                        memory_event = None  # 不记录每次交互，减少噪音
+                else:
+                    # plan 执行完毕或无 goal，idle
+                    description = "四处观望"
+                    npc_state.current_goal = None
+                    memory_event = None
 
                 # 更新 NPC 状态
                 if npc_state.current_goal:
@@ -387,6 +410,7 @@ class NPCEngine:
                     "action": description,
                     "goal": npc_state.current_goal.goal if npc_state.current_goal else "idle",
                     "goal_reason": npc_state.last_goal_reason,
+                    "vitality": npc.vitality if hasattr(npc, 'vitality') else 100.0,
                     "inventory": list(npc.inventory),
                     "memory_count": len(npc.memory),
                 })

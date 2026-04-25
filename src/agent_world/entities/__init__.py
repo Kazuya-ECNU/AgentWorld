@@ -20,6 +20,7 @@ from .world_objects import (
     ForestHuntingGround,
     WorldObjectManager,
 )
+from .manager import get_entity_manager, init_entity_manager
 
 __all__ = [
     "WorldObject",
@@ -36,4 +37,6 @@ __all__ = [
     "BarracksEquipment",
     "ForestHuntingGround",
     "WorldObjectManager",
+    "get_entity_manager",
+    "init_entity_manager",
 ]
