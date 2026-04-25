@@ -18,6 +18,7 @@ from .memory_manager import MemoryManager
 from .context import ContextBuilder
 from .reasoner import GoalReasoner, GoalOutput
 from .fallbacks import FallbackEngine, RULE_GOALS
+from .common_knowledge import COMMON_KNOWLEDGE, WORK_SCHEDULE, ROLE_BEHAVIORS, WORLD_PHYSICS, GOAL_TYPES
 
 __all__ = [
     "PersonaTags",
@@ -29,4 +30,9 @@ __all__ = [
     "GoalOutput",
     "FallbackEngine",
     "RULE_GOALS",
+    "COMMON_KNOWLEDGE",
+    "WORK_SCHEDULE",
+    "ROLE_BEHAVIORS",
+    "WORLD_PHYSICS",
+    "GOAL_TYPES",
 ]

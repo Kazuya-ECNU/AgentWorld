@@ -8,6 +8,7 @@ Context Builder - 为 LLM 构建输入上下文
 from typing import Optional
 from .persona import PersonaTags
 from .memory import MemoryStore
+from .common_knowledge import COMMON_KNOWLEDGE
 
 
 class ContextBuilder:
@@ -45,6 +46,10 @@ class ContextBuilder:
             f"你需要根据当前的状态和目标，决定自己接下来要做什么。\n"
             f"你的决策应该符合你的性格标签，并且基于你过去的记忆和当前的环境。\n"
         )
+
+    def build_common_knowledge(self) -> str:
+        """构建公共知识（所有 NPC 都知道的世界规律）"""
+        return COMMON_KNOWLEDGE
 
     def build_persona_string(self) -> str:
         """构建性格标签描述"""
@@ -102,10 +107,11 @@ class ContextBuilder:
         构建完整的 prompt 结构（供 reasoner 使用）。
         
         Returns:
-            dict with keys: system_prompt, persona, memory, recent_context, knowledge, state
+            dict with keys: system_prompt, common_knowledge, persona, memory, recent_context, knowledge, state
         """
         return {
             "system_prompt": self.build_system_prompt(),
+            "common_knowledge": self.build_common_knowledge(),
             "persona": self.build_persona_string(),
             "memory_summary": self.build_memory_summary(),
             "recent_context": self.build_recent_context(),
@@ -120,6 +126,7 @@ class ContextBuilder:
         ctx = self.build_full_prompt(**kwargs)
         return (
             f"{ctx['system_prompt']}\n\n"
+            f"【世界常识】所有人都知道的基本规律：\n{ctx['common_knowledge']}\n\n"
             f"【性格标签】{ctx['persona']}\n\n"
             f"【全部记忆】\n{ctx['memory_summary']}\n\n"
             f"【最近发生的事】{ctx['recent_context']}\n\n"
