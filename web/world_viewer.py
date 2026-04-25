@@ -114,6 +114,8 @@ async def websocket_endpoint(websocket: WebSocket):
 
 async def broadcast_tick_results(results: list):
     """NPC Engine tick 结果广播到所有 WS 客户端"""
+    for r in results:
+        print(f"[Tick] {r['name']} | status={r['status']} action='{r['action']}' goal={r['goal']} reason='{r['goal_reason']}' inv={len(r['inventory'])}")
     await manager.broadcast({
         "type": "tick",
         "data": results,

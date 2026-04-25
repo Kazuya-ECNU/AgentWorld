@@ -1,15 +1,8 @@
 """
 Goal Reasoner - LLM 推理引擎
 
-将 NPC 的上下文数据发给 LLM，推理出目标（Goal）。
-
-Goal 格式：
-  - goal: str          # 目标类型 (trade, rest, farm, socialize, explore...)
-  - reason: str        # 推理原因
-  - target_object: str | None  # 目标物体
-  - target_npc: str | None    # 目标 NPC
-  - urgency: float     # 紧迫度 0.0~1.0
-  - plan: list[str]   # 执行计划（可选）
+支持 MiniMax（Anthropic 兼容格式）和 OpenAI 两种后端。
+优先级：OPENAI_API_KEY > MINIMAX_API_KEY（从 openclaw.json 获取）
 """
 
 from typing import Optional
@@ -29,33 +22,106 @@ class GoalOutput(BaseModel):
     created_at: datetime = Field(default_factory=datetime.now)
 
 
+def _get_minimax_credentials() -> tuple[str, str]:
+    """获取 MiniMax 凭证，优先级：环境变量 > agent models.json > openclaw.json"""
+    # 先检查环境变量
+    api_key = os.environ.get("MINIMAX_API_KEY", "").strip()
+    base_url = os.environ.get("MINIMAX_BASE_URL", "").strip()
+    
+    if not api_key:
+        api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    
+    if not api_key:
+        # 尝试从 agent 配置读取（与当前 agent 相同配置）
+        import json
+        for config_path in [
+            os.path.expanduser("~/.openclaw/agents/coder/agent/models.json"),
+            os.path.expanduser("~/.openclaw/agents/life/agent/models.json"),
+            os.path.expanduser("~/.openclaw/openclaw.json"),
+        ]:
+            try:
+                with open(config_path) as f:
+                    raw = f.read()
+                # 找到 providers 对象（以 { 开头，在 providers 关键字之后）
+                idx = raw.find('"providers"')
+                if idx < 0:
+                    continue
+                brace_idx = raw.find('{', idx)
+                if brace_idx < 0:
+                    continue
+                partial = raw[brace_idx:]
+                depth = 0
+                end = 0
+                for i, c in enumerate(partial):
+                    if c == '{': depth += 1
+                    elif c == '}':
+                        depth -= 1
+                        if depth == 0:
+                            end = i + 1
+                            break
+                if end == 0:
+                    continue
+                providers = json.loads(partial[:end])
+                minimax = providers.get("minimax", {})
+                api_key = minimax.get("apiKey", "") or minimax.get("api_key", "")
+                base_url = minimax.get("baseUrl", "") or minimax.get("base_url", "")
+                if api_key:
+                    break
+            except Exception:
+                continue
+    
+    if not base_url:
+        base_url = "https://api.minimaxi.com/anthropic"
+    
+    return base_url, api_key
+
+
 class GoalReasoner:
     """
     使用 LLM 推理 NPC 的目标。
     
-    流程：
-    1. ContextBuilder 构建输入
-    2. 发送给 LLM
-    3. 解析响应为 GoalOutput
-    4. 失败时 fallback 到规则引擎
+    优先使用 MiniMax（Anthropic 兼容 API），无配置则使用 OpenAI。
     """
 
-    def __init__(self, model: str = "gpt-4o-mini"):
+    def __init__(self, model: str | None = None):
+        # 自动选择模型
+        if model is None:
+            model = "MiniMax-M2.7"
         self.model = model
-        self._client = None  # 延迟初始化
+        self._client = None  # httpx client（延迟初始化）
+        self._provider: str = ""  # "minimax" | "openai"
 
-    def _get_client(self):
-        """延迟初始化 LLM client"""
-        if self._client is None:
+    def _init_client(self):
+        if self._client is not None:
+            return
+        
+        # 尝试 MiniMax
+        base_url, api_key = _get_minimax_credentials()
+        if api_key and "minimax" in base_url.lower():
+            import httpx
+            self._client = httpx.Client(
+                base_url=base_url,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "anthropic-version": "2023-06-01",
+                    "anthropic-dangerous-direct-browser-access": "true",
+                },
+                timeout=15.0,
+            )
+            self._provider = "minimax"
+            return
+        
+        # 回退到 OpenAI
+        if api_key:
             try:
                 from openai import OpenAI
-                api_key = os.getenv("OPENAI_API_KEY")
-                if not api_key:
-                    raise ValueError("OPENAI_API_KEY not set")
                 self._client = OpenAI(api_key=api_key)
+                self._provider = "openai"
+                return
             except ImportError:
-                raise ImportError("openai package not installed. Run: pip install openai")
-        return self._client
+                pass
+        
+        raise ValueError("No API key configured for LLM推理")
 
     def reason(self, prompt: str) -> GoalOutput | None:
         """
@@ -65,33 +131,83 @@ class GoalReasoner:
             GoalOutput if success, None if failed.
         """
         try:
-            client = self._get_client()
-            response = client.chat.completions.create(
-                model=self.model,
-                messages=[
+            self._init_client()
+        except ValueError as e:
+            print(f"[GoalReasoner] 未配置 LLM: {e}")
+            return None
+
+        try:
+            if self._provider == "minimax":
+                return self._reason_minimax(prompt)
+            else:
+                return self._reason_openai(prompt)
+        except Exception as e:
+            print(f"[GoalReasoner] LLM 调用失败 ({self._provider}): {e}")
+            return None
+
+    def _reason_minimax(self, prompt: str) -> GoalOutput | None:
+        """MiniMax Anthropic API"""
+        response = self._client.post(
+            "/v1/messages",
+            json={
+                "model": self.model,
+                "max_tokens": 200,
+                "messages": [
                     {
-                        "role": "system",
+                        "role": "user",
                         "content": (
-                            "你是一个生活模拟世界的 AI NPC 推理引擎。"
-                            "根据 NPC 的性格标签、记忆、当前状态等信息，"
-                            "推理出 NPC 当前最合理的目标。\n\n"
-                            "输出格式要求：\n"
+                            "你是一个 AI NPC 目标推理引擎。根据 NPC 的状态信息，"
+                            "推理出其当前最合理的目标。\n\n"
+                            "输出格式：\n"
                             "goal: <目标类型>\n"
                             "reason: <推理原因>\n"
                             "urgency: <0.0~1.0>\n"
-                            "plan: <步骤1>; <步骤2>; ..."
+                            "plan: <步骤1>; <步骤2>"
                         )
                     },
+                    {"role": "assistant", "content": "goal: rest\nreason: 能量低需要休息\nurgency: 0.7\nplan: 移动到 tavern; 在酒馆休息"},
                     {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=300,
-            )
-            return self._parse_response(response.choices[0].message.content)
-
-        except Exception as e:
-            print(f"[GoalReasoner] LLM 调用失败: {e}")
+                ]
+            }
+        )
+        if response.status_code != 200:
+            print(f"[GoalReasoner] MiniMax API 错误: {response.status_code} {response.text[:100]}")
             return None
+        
+        data = response.json()
+        # MiniMax Anthropic 格式：content 是 list
+        content_blocks = data.get("content", [])
+        text = ""
+        for block in content_blocks:
+            if block.get("type") == "text":
+                text = block.get("text", "")
+                break
+        
+        return self._parse_response(text)
+
+    def _reason_openai(self, prompt: str) -> GoalOutput | None:
+        """OpenAI Chat Completions API"""
+        response = self._client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "你是一个 AI NPC 目标推理引擎。根据 NPC 的状态信息，"
+                        "推理出其当前最合理的目标。\n\n"
+                        "输出格式：\n"
+                        "goal: <目标类型>\n"
+                        "reason: <推理原因>\n"
+                        "urgency: <0.0~1.0>\n"
+                        "plan: <步骤1>; <步骤2>"
+                    )
+                },
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=200,
+        )
+        return self._parse_response(response.choices[0].message.content)
 
     def _parse_response(self, text: str) -> GoalOutput | None:
         """解析 LLM 输出文本为 GoalOutput"""
@@ -109,7 +225,10 @@ class GoalReasoner:
                 elif key == "reason":
                     data["reason"] = value
                 elif key == "urgency":
-                    data["urgency"] = float(value)
+                    try:
+                        data["urgency"] = float(value)
+                    except ValueError:
+                        pass
                 elif key == "plan":
                     data["plan"] = [p.strip() for p in value.split(";") if p.strip()]
 

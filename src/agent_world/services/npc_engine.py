@@ -108,8 +108,17 @@ class NPCEngine:
         self._npc_states: dict[str, NPCState] = {}  # npc_id → NPCState
 
         # 认知模块
-        self.llm_available = llm_available
-        self.reasoner = GoalReasoner() if llm_available else None
+        # 自动检测是否有 LLM 凭证
+        from agent_world.cognition.reasoner import _get_minimax_credentials
+        _, api_key = _get_minimax_credentials()
+        if api_key:
+            self.llm_available = True
+            self.reasoner = GoalReasoner()
+            print(f"[NPCEngine] LLM 推理启用 (MiniMax)")
+        else:
+            self.llm_available = False
+            self.reasoner = None
+            print("[NPCEngine] 未配置 LLM，使用规则引擎兜底")
         self.fallback = FallbackEngine()
 
         # 实体模块（使用共享管理器）
@@ -346,46 +355,57 @@ class NPCEngine:
                 memory_event = None
 
                 # === 决策：是否需要推理新 Goal ===
-                # plan 执行完毕（exhausted）且 cooldown 已过，才重新推理
-                plan_exhausted = npc_state.plan_index >= len(npc_state.current_plan)
-                if plan_exhausted and npc_state.goal_cooldown <= 0:
-                    # 需要新 goal 且可以推理
-                    old_goal = npc_state.current_goal
-                    npc_state.current_goal = self._infer_goal(npc, world)
-                    npc_state.last_goal_reason = npc_state.current_goal.reason
-                    npc_state.current_plan = npc_state.current_goal.plan or [npc_state.current_goal.goal]
-                    npc_state.plan_index = 0
-                    npc_state.goal_cooldown = 3
-                    memory_event = None  # 不记录 goal 推理记忆，只记录执行结果
-                elif plan_exhausted:
-                    # plan 执行完毕但 cooldown 未过，保持 idle
-                    description = "四处观望"
-                    npc_state.current_goal = None
-                    memory_event = None
-                
-                # === 执行当前 Plan 步骤 ===
-                _goal = npc_state.current_goal
-                _idx = npc_state.plan_index
-                _plan = npc_state.current_plan
-                _exec_cond = _goal is not None and _idx < len(_plan)
-                
-                if _exec_cond:
+                # 如果 cooldown 未过，复用上次的 goal（留在原地重复交互）
+                if npc_state.goal_cooldown > 0 and npc_state.current_goal is not None:
+                    # 还在 cooldown 中：保持 goal，执行上一步骤（留在原地重复交互）
+                    # 不重新推理，不记录新记忆
+                    _goal = npc_state.current_goal
+                    _plan = npc_state.current_plan
+                    _idx = npc_state.plan_index
+                    if _idx < len(_plan):
+                        step = _plan[_idx]
+                        description, _ = self._execute_plan_step(npc, step, world, current_goal=_goal)
+                        # 重复交互，不记录新记忆，不重置 cooldown
+                        memory_event = None
+                    else:
+                        description = "原地待命"
+                        memory_event = None
+
+                elif npc_state.current_goal is not None and npc_state.plan_index < len(npc_state.current_plan):
+                    # 有 goal 且 plan 未完成：正常执行当前步骤
+                    _goal = npc_state.current_goal
+                    _idx = npc_state.plan_index
+                    _plan = npc_state.current_plan
                     step = _plan[_idx]
                     description, mem_ev = self._execute_plan_step(npc, step, world, current_goal=_goal)
                     memory_event = f"执行步骤{_idx}:{step} 结果:{description}"
                     npc_state.plan_index += 1
-                    
+
                     # 如果是交互步骤（step index >= 1），说明已到达目标区域
-                    # 交互成功后设置较长冷却，避免反复移动
+                    # 交互成功后进入 cooldown，期间留在原地重复交互
                     if _idx >= 1:
-                        npc_state.goal_cooldown = 15  # 15 ticks 冷却，期间留在原地重复交互
-                        npc_state.current_goal = None  # 留在原地，但不复位 plan_index
+                        npc_state.goal_cooldown = 15
                         memory_event = None  # 不记录每次交互，减少噪音
+
                 else:
-                    # plan 执行完毕或无 goal，idle
-                    description = "四处观望"
-                    npc_state.current_goal = None
-                    memory_event = None
+                    # 无 goal 或 plan 执行完毕
+                    plan_exhausted = npc_state.plan_index >= len(npc_state.current_plan)
+                    if plan_exhausted and npc_state.goal_cooldown > 0:
+                        # plan 耗尽但还在 cooldown 中：留在原地等待，不清空 goal
+                        description = "原地待命中"
+                        memory_event = None
+                    elif plan_exhausted and npc_state.goal_cooldown <= 0:
+                        # plan 耗尽且 cooldown 结束：推理新 goal
+                        npc_state.current_goal = self._infer_goal(npc, world)
+                        npc_state.last_goal_reason = npc_state.current_goal.reason
+                        npc_state.current_plan = npc_state.current_goal.plan or [npc_state.current_goal.goal]
+                        npc_state.plan_index = 0
+                        npc_state.goal_cooldown = 3
+                        memory_event = None
+                    else:
+                        # 无 goal：idle
+                        description = "四处观望"
+                        memory_event = None
 
                 # 更新 NPC 状态
                 if npc_state.current_goal:
