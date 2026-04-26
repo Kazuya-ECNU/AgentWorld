@@ -144,6 +144,8 @@ class GoalReasoner:
         except Exception as e:
             print(f"[GoalReasoner] LLM 调用失败 ({self._provider}): {e}")
             return None
+        finally:
+            print(f"[GoalReasoner] reason() 结束, provider={self._provider}")
 
     def _reason_minimax(self, prompt: str) -> GoalOutput | None:
         """MiniMax Anthropic API"""
