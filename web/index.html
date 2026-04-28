@@ -418,8 +418,14 @@
         </div>
     </div>
 
+    <div id="debugBar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:999;background:#222;color:#0f0;font-family:monospace;font-size:11px;padding:4px 8px;"></div>
     <script>
-        const API_BASE = 'http://192.168.10.226:8765';
+        function debug(msg) {
+            const bar = document.getElementById('debugBar');
+            if (bar) { bar.style.display = 'block'; bar.textContent = msg; }
+            console.log('[AW]', msg);
+        }
+        const API_BASE = window.location.origin;
         let currentTab = 'npcs';
         let worldData = null;
         let npcsData = [];
@@ -464,31 +470,45 @@
         // 加载世界数据
         async function loadWorld() {
             try {
-                const res = await fetch(`${API_BASE}/api/world`);
+                const url = `${API_BASE}/api/world`;
+                console.log('[AW] 加载世界数据:', url);
+                const res = await fetch(url);
                 const data = await res.json();
+                console.log('[AW] 世界数据:', Object.keys(data));
                 // FastAPI 返回直接是 WorldResponse 对象（不在 success 包装里）
                 if (data.id && data.zones) {
                     worldData = data;
                     renderWorldTime();
                     renderZones();
                     renderWorldInfo();
+                } else {
+                    console.error('[AW] 世界数据格式异常:', data);
                 }
             } catch (e) {
-                console.error('加载世界数据失败:', e);
+                console.error('[AW] 加载世界数据失败:', e);
+                document.getElementById('emptyState').innerHTML = `<div class="empty-state-icon">❌</div>
+                    <div>加载失败</div>
+                    <div style="font-size: 12px; margin-top: 5px;">${e.message}</div>`;
             }
         }
 
         // 加载 NPC 数据
         async function loadNPCs() {
             try {
-                const res = await fetch(`${API_BASE}/api/npc`);
+                const url = `${API_BASE}/api/npc`;
+                console.log('[AW] 加载 NPC 数据:', url);
+                const res = await fetch(url);
                 const data = await res.json();
-                if (data.success) {
+                console.log('[AW] NPC 数据:', data.success, data.data?.length || 0);
+                if (data.success && data.data) {
                     npcsData = data.data;
                     renderNPCs();
+                    if (worldData && npcsData.length > 0) renderZones();
+                } else {
+                    console.warn('[AW] NPC 数据为空或失败:', data);
                 }
             } catch (e) {
-                console.error('加载 NPC 数据失败:', e);
+                console.error('[AW] 加载 NPC 数据失败:', e);
             }
         }
 
@@ -710,10 +730,12 @@
 
         // 初始化
         async function init() {
+            debug('页面加载中... API_BASE=' + API_BASE);
             await loadWorld();
             await loadNPCs();
             await loadAgents();
             await loadObjects();
+            debug('初始化完成, NPC=' + (npcsData?.length || 0));
             
             // 每 5 秒刷新一次数据
             setInterval(async () => {

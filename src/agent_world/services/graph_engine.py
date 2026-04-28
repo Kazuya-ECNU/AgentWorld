@@ -338,7 +338,7 @@ class GraphEngine:
                 continue
             # Infer type from attribute name
             attr = eff.get("attribute_name", "")
-            if attr in ("vitality", "hunger", "mood", "strength"):
+            if attr in ("vitality", "satiety", "mood", "strength"):
                 etype = "npc"
             elif attr in ("status", "state"):
                 etype = "object"

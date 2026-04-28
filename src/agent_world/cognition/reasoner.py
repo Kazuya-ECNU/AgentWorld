@@ -153,21 +153,26 @@ class GoalReasoner:
             "/v1/messages",
             json={
                 "model": self.model,
-                "max_tokens": 200,
+                "max_tokens": 500,
                 "messages": [
                     {
                         "role": "user",
                         "content": (
                             "你是一个 AI NPC 目标推理引擎。根据 NPC 的状态信息，"
                             "推理出其当前最合理的目标。\n\n"
-                            "输出格式：\n"
-                            "goal: <目标类型>\n"
-                            "reason: <推理原因>\n"
-                            "urgency: <0.0~1.0>\n"
-                            "plan: <步骤1>; <步骤2>"
+                            "请用以下 JSON 格式输出，不要加其他内容：\n"
+                            '{"goal": "目标类型", "reason": "推理原因", '
+                            '"urgency": 0.5, "plan": ["步骤1", "步骤2"]}\n\n'
+                            "goal 可选值: trade/farm/mine/rest/socialize/explore/work"
                         )
                     },
-                    {"role": "assistant", "content": "goal: rest\nreason: 能量低需要休息\nurgency: 0.7\nplan: 移动到 tavern; 在酒馆休息"},
+                    {
+                        "role": "assistant",
+                        "content": (
+                            '{"goal": "rest", "reason": "体力偏低需要休息恢复", '
+                            '"urgency": 0.7, "plan": ["移动到 tavern", "在酒馆休息"]}'
+                        )
+                    },
                     {"role": "user", "content": prompt}
                 ]
             }
@@ -197,54 +202,199 @@ class GoalReasoner:
                     "content": (
                         "你是一个 AI NPC 目标推理引擎。根据 NPC 的状态信息，"
                         "推理出其当前最合理的目标。\n\n"
-                        "输出格式：\n"
-                        "goal: <目标类型>\n"
-                        "reason: <推理原因>\n"
-                        "urgency: <0.0~1.0>\n"
-                        "plan: <步骤1>; <步骤2>"
+                        "请用以下 JSON 格式输出，不要加其他内容：\n"
+                        '{"goal": "目标类型", "reason": "推理原因", '
+                        '"urgency": 0.5, "plan": ["步骤1", "步骤2"]}\n\n'
+                        "goal 可选值: trade/farm/mine/rest/socialize/explore/work"
                     )
                 },
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
-            max_tokens=200,
+            max_tokens=500,
         )
         return self._parse_response(response.choices[0].message.content)
 
     def _parse_response(self, text: str) -> GoalOutput | None:
-        """解析 LLM 输出文本为 GoalOutput"""
-        try:
-            lines = text.strip().split("\n")
-            data = {}
-            for line in lines:
-                if ":" not in line:
-                    continue
-                key, _, value = line.partition(":")
-                key = key.strip().lower()
-                value = value.strip()
-                if key == "goal":
-                    data["goal"] = value
-                elif key == "reason":
-                    data["reason"] = value
-                elif key == "urgency":
-                    try:
-                        data["urgency"] = float(value)
-                    except ValueError:
-                        pass
-                elif key == "plan":
-                    data["plan"] = [p.strip() for p in value.split(";") if p.strip()]
+        """
+        解析 LLM 输出文本为 GoalOutput。
+        
+        多策略解析（按优先级）：
+          1. JSON 解析
+          2. 行级 key:value 解析（兼容中文冒号、多行 reason）
+          3. 正则提取（从自由文本中搜出 goal 类型）
+        """
+        if not text or not text.strip():
+            return None
 
-            if "goal" in data:
+        text = text.strip()
+
+        # ---- 策略 1: JSON 解析 ----
+        result = self._parse_as_json(text)
+        if result:
+            return result
+
+        # ---- 策略 1b: 紧凑 JSON（去掉换行和多余空格再试） ----
+        compact = self._compact_text(text)
+        if compact != text:
+            result = self._parse_as_json(compact)
+            if result:
+                return result
+
+        # ---- 策略 2: 行级 key:value ----
+        result = self._parse_as_keyvalue(text)
+        if result:
+            return result
+
+        # ---- 策略 3: 正则提取（兜底） ----
+        result = self._parse_as_regex(text)
+        if result:
+            return result
+
+        return None
+
+    @staticmethod
+    def _compact_text(text: str) -> str:
+        """去除多余空白，帮助 JSON 解析"""
+        import re
+        compact = re.sub(r'\s+', ' ', text).strip()
+        return compact
+
+    def _parse_as_json(self, text: str) -> GoalOutput | None:
+        """策略 1：从文本中提取 JSON 并解析"""
+        import json
+
+        start = text.find('{')
+        end = text.rfind('}')
+        if start == -1 or end == -1 or end <= start:
+            return None
+
+        candidate = text[start:end+1]
+        try:
+            data = json.loads(candidate)
+            goal = data.get("goal", "")
+            if not goal:
+                return None
+
+            plan = data.get("plan", [])
+            if isinstance(plan, str):
+                plan = [plan]
+
+            return GoalOutput(
+                goal=goal,
+                reason=data.get("reason", ""),
+                urgency=float(data.get("urgency", 0.5)),
+                plan=plan,
+            )
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return None
+
+    def _parse_as_keyvalue(self, text: str) -> GoalOutput | None:
+        """策略 2：行级 key: value 解析（兼容中文冒号、多行值）"""
+        try:
+            lines = text.split("\n")
+            data = {}
+            current_key = None
+            current_value_parts = []
+
+            for line in lines:
+                line_stripped = line.strip()
+                if not line_stripped:
+                    continue
+
+                # 检查是否是新的 key (含英文或中文冒号的第一行)
+                key = None
+                sep = None
+                for s in [": ", ":", "： ", "："]:
+                    if s in line_stripped:
+                        possible_key = line_stripped.split(s, 1)[0].strip().lower()
+                        if possible_key in ("goal", "reason", "urgency", "plan", "target_object"):
+                            key = possible_key
+                            sep = s
+                            break
+
+                if key:
+                    # 保存上一条多行值
+                    if current_key:
+                        data[current_key] = "\n".join(current_value_parts).strip()
+
+                    current_key = key
+                    _, _, rest = line_stripped.partition(sep)
+                    current_value_parts = [rest.strip()]
+                elif current_key:
+                    # 续行（多行值）
+                    current_value_parts.append(line_stripped)
+
+            # 保存最后一条
+            if current_key:
+                data[current_key] = "\n".join(current_value_parts).strip()
+
+            if "goal" not in data:
+                return None
+
+            plan = data.get("plan", [])
+            if isinstance(plan, str):
+                plan = [p.strip() for p in plan.split(";") if p.strip()]
+
+            urgency = 0.5
+            if "urgency" in data:
+                try:
+                    urgency = float(data["urgency"])
+                except ValueError:
+                    pass
+
+            return GoalOutput(
+                goal=data["goal"],
+                reason=data.get("reason", ""),
+                urgency=urgency,
+                plan=plan,
+            )
+        except Exception:
+            return None
+
+    def _parse_as_regex(self, text: str) -> GoalOutput | None:
+        """策略 3：从自由文本中正则提取 goal 类型（兜底）"""
+        import re
+
+        valid_goals = ["trade", "farm", "mine", "rest", "socialize", "explore", "work"]
+
+        # 按优先级：明确的 "goal:" > 关键词在句子中 > 角色默认行为
+        text_lower = text.lower()
+
+        # 1) 明确标记：lookbehind 找 "goal[：:]"
+        for g in valid_goals:
+            if re.search(rf'(?:goal|target)[：:]\s*{re.escape(g)}', text_lower):
                 return GoalOutput(
-                    goal=data.get("goal", "idle"),
-                    reason=data.get("reason", ""),
-                    target_object=data.get("target_object"),
-                    target_npc=data.get("target_npc"),
-                    urgency=data.get("urgency", 0.5),
-                    plan=data.get("plan", []),
+                    goal=g,
+                    reason=f"[解析] {text[:100]}...",
+                    urgency=0.5,
                 )
-        except Exception as e:
-            print(f"[GoalReasoner] 解析失败: {e}")
+
+        # 2) 关键词在文本中出现（中英文）
+        keyword_map = {
+            "trade": ["交易", "trade", "摆摊", "卖"],
+            "farm": ["农", "farm", "种", "作物"],
+            "mine": ["挖", "矿", "mine", "矿石"],
+            "rest": ["休息", "rest", "恢复", "歇", "睡觉"],
+            "socialize": ["社交", "聊", "socialize", "喝酒", "聚"],
+            "explore": ["探索", "explore", "逛逛", "转转"],
+            "work": ["工作", "work", "巡逻", "研究"],
+        }
+
+        scores = {g: 0 for g in valid_goals}
+        for g, kws in keyword_map.items():
+            for kw in kws:
+                if kw in text_lower:
+                    scores[g] += 1
+
+        best = max(scores, key=scores.get)
+        if scores[best] > 0:
+            return GoalOutput(
+                goal=best,
+                reason=f"[模糊匹配] {text[:100]}...",
+                urgency=0.5,
+            )
+
         return None
 
     def reason_for_npc(self, formatted_prompt: str) -> GoalOutput | None:

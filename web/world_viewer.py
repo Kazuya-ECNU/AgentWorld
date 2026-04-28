@@ -20,7 +20,8 @@ import uvicorn
 from agent_world.db import init_db, get_session, WorldDB, NPCDB
 from agent_world.models.world import World
 from agent_world.models.npc import NPC, NPCRole, NPCStatus
-from agent_world.services.npc_engine import NPCEngine
+from agent_world.services.graph_npc_engine import GraphNPCEngine
+from agent_world.services.world_updater import init_world_updater, get_world_updater
 
 # === FastAPI App ===
 
@@ -28,11 +29,20 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # 启动时
+    # 初始化 World Updater
+    world_updater = init_world_updater(refresh_interval_minutes=5.0)
+    
+    # 启动 NPC Engine
     asyncio.create_task(start_npc_engine())
+    
+    # 启动 World Updater 定时刷新
+    asyncio.create_task(world_updater.run_periodically())
+    
     yield
+    
     # 关闭时
-    print("[NPC Engine] 关闭中...")
+    world_updater.stop()
+    print("[WorldUpdater] 已停止")
 
 app = FastAPI(title="Agent World API", version="0.1.0", lifespan=lifespan)
 
@@ -113,9 +123,14 @@ async def websocket_endpoint(websocket: WebSocket):
 # === NPC Engine 集成 ===
 
 async def broadcast_tick_results(results: list):
-    """NPC Engine tick 结果广播到所有 WS 客户端"""
+    """图引擎 NPC tick 结果广播到所有 WS 客户端"""
     for r in results:
-        print(f"[Tick] {r['name']} | status={r['status']} action='{r['action']}' goal={r['goal']} reason='{r['goal_reason']}' inv={len(r['inventory'])}")
+        name = r['npc_name']
+        act = r.get('action', '')
+        zone = r.get('zone', '')
+        vit = r.get('vitality', 0)
+        inv = r.get('inventory', {})
+        print(f"[Tick] {name} | {act} @ {zone} | vit={vit} inv={len(inv)}")
     await manager.broadcast({
         "type": "tick",
         "data": results,
@@ -136,14 +151,20 @@ app.include_router(agent_api.router)  # router already has /api/agent prefix
 
 @app.get("/")
 async def root():
+    from fastapi.responses import FileResponse
+    index_file = web_dir / "index.html"
+    if index_file.exists():
+        from fastapi.responses import HTMLResponse
+        html_content = index_file.read_text(encoding="utf-8")
+        return HTMLResponse(content=html_content, headers={"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"})
     return {"msg": "Agent World API", "version": "0.1.0", "phase": 4}
 
 
 # === 后台任务：NPC Engine ===
 
 async def start_npc_engine():
-    """启动 NPC Engine 作为后台任务"""
-    engine = NPCEngine()
+    """启动图引擎 NPC 服务作为后台任务"""
+    engine = GraphNPCEngine(llm_available=True)
     engine.add_listener(broadcast_tick_results)
     await engine.run()
 
@@ -165,7 +186,7 @@ def main():
     print("🌐 HTTP Server: http://0.0.0.0:8765")
     print("📡 WebSocket: ws://0.0.0.0:8765/ws")
     print("📖 API Docs: http://0.0.0.0:8765/docs")
-    print("🤖 NPC Engine: 运行中 (每 5s tick)")
+    print("🤖 NPC Engine: LLM 驱动 (每 10 分钟 tick, 游戏内 30 分钟/tick)")
     print()
 
     uvicorn.run(app, host="0.0.0.0", port=8765, log_level="warning")

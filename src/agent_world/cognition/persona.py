@@ -104,8 +104,14 @@ class PersonaTags(BaseModel):
         return "、".join(parts) if parts else "普通性格"
 
     @classmethod
-    def from_dict(cls, data: dict) -> "PersonaTags":
-        """从字典创建（支持中文 key）"""
+    def from_dict(cls, data) -> "PersonaTags":
+        """从字典或 Pydantic 模型创建（支持中文 key）"""
+        # 如果是 Pydantic 模型，转换为 dict
+        if hasattr(data, 'model_dump'):
+            data = data.model_dump()
+        elif not isinstance(data, dict):
+            data = dict(data)
+
         # 中文 -> 英文映射
         chinese_map = {
             "勤奋程度": "diligence",
@@ -114,15 +120,21 @@ class PersonaTags(BaseModel):
             "信任度": "trust",
             "慷慨度": "generosity",
             "标签集合": "extra_tags",
+            "工作伦理": "work_ethic",
+            "社会阶层": "social_class",
+            "声誉": "reputation",
+            "兴趣爱好": "interests",
+            "性格特点": "personality",
+            "特殊特质": "special_traits",
         }
-        
+
         converted = {}
         for k, v in data.items():
             if k in chinese_map:
                 converted[chinese_map[k]] = v
             elif k not in ("updated_at",):
                 converted[k] = v
-        
+
         return cls(**converted)
 
 

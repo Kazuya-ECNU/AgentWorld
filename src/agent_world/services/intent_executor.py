@@ -49,6 +49,7 @@ class ExecutionResult:
     zone_changed: bool = False
     interacted_npcs: list[str] = field(default_factory=list)
     interacted_objects: list[str] = field(default_factory=list)
+    unreachable_targets: list[str] = field(default_factory=list)
     narrative: str = ""
     raw_intent: str = ""
 
@@ -99,7 +100,10 @@ NPC 的自然语言决策：
 
 规则：
 1. interact_with：NPC 需要交互的对象——type 可选 zone（区域）、object（物体）、npc（其他角色）
-2. 如果 NPC 说要找某人聊天/交易，用 type:npc, id:那个人的名字（如 {{"type": "npc", "id": "王老板"}}）
+2. **重要——交易必须指定 NPC**：如果 NPC 说要卖东西、买东西、交易、聊生意、找人合作，
+   必须同时输出 type:zone（目标区）和 type:npc（交易对象）。
+   只输出 zone 而不写 npc 会导致交易无法发生、失物不消失。
+   例子：{{"type": "zone", "id": "market"}}, {{"type": "npc", "id": "王老板"}}
 3. "前往X区" → type:zone, id:X，但前提是 NPC 当前不在该区
 4. 仅休息/闲逛/无事 → interact_with 可为空数组
 5. narrative：用人类可读的一句话总结发生了什么
@@ -248,6 +252,8 @@ class IntentExecutor:
         zone_before = npc_ent.get_attr("zone_id") or "?"
         interacted_npcs = []
         interacted_objects = []
+        unreachable_targets = []
+        zone_chase_candidates = {}  # zone_name → [target_names]
 
         for target in intent.get("interact_with", []):
             ttype = target.get("type", "")
@@ -257,12 +263,36 @@ class IntentExecutor:
             elif ttype == "object":
                 if self._handle_object_interaction(npc_eid, tid):
                     interacted_objects.append(tid)
+                else:
+                    unreachable_targets.append(tid)
             elif ttype == "npc":
-                if self._handle_npc_interaction(npc_eid, tid):
+                success, tzone = self._handle_npc_interaction(npc_eid, tid)
+                if success:
                     interacted_npcs.append(tid)
+                elif tzone:
+                    # 目标在不同区 → 记录以决定是否追过去
+                    if tzone not in zone_chase_candidates:
+                        zone_chase_candidates[tzone] = []
+                    zone_chase_candidates[tzone].append(tid)
+                    unreachable_targets.append(tid)
+                else:
+                    unreachable_targets.append(tid)
 
+        # ─── 决策：要不要追去目标 NPC 的区域？ ───
         zone_after = npc_ent.get_attr("zone_id") or zone_before
         zone_changed = zone_before != zone_after
+
+        if zone_chase_candidates and not zone_changed:
+            chase_zone = self._decide_chase(
+                npc_name, npc_role, npc_ent,
+                zone_before, zone_chase_candidates,
+            )
+            if chase_zone:
+                target_names = "、".join(zone_chase_candidates[chase_zone])
+                logger.info(f"[Chase] {npc_name}: 决定追去 {chase_zone} 找{target_names}")
+                self._handle_zone_interaction(npc_eid, chase_zone)
+                zone_after = npc_ent.get_attr("zone_id") or zone_before
+                zone_changed = zone_before != zone_after
 
         return ExecutionResult(
             npc_eid=npc_eid,
@@ -273,9 +303,58 @@ class IntentExecutor:
             zone_changed=zone_changed,
             interacted_npcs=interacted_npcs,
             interacted_objects=interacted_objects,
+            unreachable_targets=unreachable_targets,
             narrative=narrative,
             raw_intent=raw_intent,
         )
+
+    # ─── 追人决策 ───
+
+    _PROACTIVE_TAGS = {"勤劳", "急性子", "热心", "积极", "勇敢", "好动", "主动"}
+    _LAZY_TAGS = {"懒散", "怕麻烦", "随遇而安", "谨慎", "孤僻", "慢吞吞"}
+
+    def _decide_chase(
+        self,
+        npc_name: str,
+        npc_role: str,
+        npc_ent: object,
+        current_zone: str,
+        zone_candidates: dict[str, list[str]],
+    ) -> str | None:
+        """
+        根据性格+随机决定是否追去目标 NPC 的区域。
+
+        返回要去的 zone_name，或 None 表示放弃。
+        """
+        import random
+
+        # 1. 从 persona_tags 提取性格倾向
+        tags = (npc_ent.get_attr("persona_tags") or "").lower() if hasattr(npc_ent, 'get_attr') else ""
+        # graph_npc_engine 传 personality 的方式不一致，兜底
+        is_proactive = any(t in tags for t in ["勤劳", "热心", "急性子", "积极", "勇敢"])
+        is_lazy = any(t in tags for t in ["懒散", "怕麻烦", "谨慎"])
+
+        role_proactive = npc_role in ("merchant", "trader", "messenger", "hunter")
+        role_lazy = npc_role in ("scholar", "priest", "noble")
+
+        # 2. 基础概率
+        base_chance = 0.5  # 50% 保底
+        if is_proactive or role_proactive:
+            base_chance = 0.85
+        if is_lazy or role_lazy:
+            base_chance = 0.25
+
+        # 3. 遍历区域候选项，对每个独立决策
+        for zone_name, target_names in zone_candidates.items():
+            if zone_name == current_zone:
+                continue
+            roll = random.random()
+            if roll < base_chance:
+                return zone_name
+            else:
+                logger.info(f"[Chase] {npc_name}: 放弃追随到 {zone_name}（roll={roll:.2f} < {base_chance}）")
+
+        return None
 
     # ─── 拓扑处理 ───
 
@@ -325,17 +404,30 @@ class IntentExecutor:
                 return True
         return False
 
-    def _handle_npc_interaction(self, npc_eid: str, target_npc_name: str) -> bool:
-        """处理 NPC 间交互"""
+    def _handle_npc_interaction(self, npc_eid: str, target_npc_name: str) -> tuple[bool, str | None]:
+        """处理 NPC 间交互
+
+        Returns:
+            (True, None)         — 成功建立连接（双方同区）
+            (False, None)        — 目标 NPC 不存在
+            (False, target_zone) — 目标在不同区，返回 ta 所在的区域名
+        """
         src_ent = self._ge.get_entity(npc_eid)
         if not src_ent:
-            return False
+            return False, None
+
+        src_zone = src_ent.get_attr("zone_id")
 
         for ent in self._ge.all_entities():
             if ent.entity_type == "npc" and ent.name == target_npc_name:
+                target_zone = ent.get_attr("zone_id")
+                # 仅当双方在同一区域时才建立交互
+                if src_zone and target_zone and src_zone != target_zone:
+                    logger.info(f"[NPC] {src_ent.name}↔{ent.name}: 不同区({src_zone}≠{target_zone})")
+                    return False, target_zone
                 teid = ent.entity_id
                 if teid not in src_ent.connected_entity_ids:
                     self._ge.connect(npc_eid, teid)
                     logger.info(f"[NPC] {src_ent.name} ↔ {ent.name}")
-                return True
-        return False
+                return True, None
+        return False, None

@@ -2,7 +2,7 @@
 NPC Prompt Builder —— 为每个 NPC 独立构建推理上下文。
 
 每个 NPC 的 prompt 包含：
-  - 自身属性（体力/饥饿/心情/位置/角色）
+  - 自身属性（体力/饱腹/心情/位置/角色）
   - 最近经历（记忆）
   - 性格标签
   - 库存
@@ -47,14 +47,19 @@ def build_one_npc_prompt(
     """
     # ── 属性部分 ──
     vitality = npc_entity.get_attr("vitality") or 0
-    hunger = npc_entity.get_attr("hunger") or 0
+    satiety = npc_entity.get_attr("satiety") or 0
     mood = npc_entity.get_attr("mood") or 0
     zone_id = npc_entity.get_attr("zone_id") or "?"
 
     parts = [
         f"## NPC: {npc_name}",
         f"角色: {npc_role}  |  位置: {zone_id}",
-        f"体力: {vitality:.0f}/100  |  饥饿: {hunger:.0f}/100  |  心情: {mood:.0f}/100",
+        f"体力: {vitality:.0f}/100  |  饱腹: {satiety:.0f}/100  |  心情: {mood:.0f}/100",
+        "",
+        "⚠️  属性警戒值（请根据当前数值自行判断紧急程度）：",
+        "  - 体力 < 30：极度疲劳，必须休息恢复，否则无法继续行动",
+        "  - 饱腹 < 30：极度饥饿，必须进食，降到 0 会饿死",
+        "  - 心情 < 20：心情极差，可能会抑郁，需要社交或娱乐缓解",
         "",
     ]
 
@@ -112,36 +117,10 @@ def build_one_fallback_prompt(
     """
     兜底模式的 NPC 决策（不用 LLM）。
     返回和 LLM 同样结构的 dict 供 execute_effects 使用。
+    不做硬编码条件判断——统一行为：在当前位置闲逛，轻微消耗体力/饱腹。
     """
     neid = npc_entity.entity_id
-    vitality = npc_entity.get_attr("vitality") or 50
 
-    # 如果体力太低，休息
-    if vitality < 20:
-        return {
-            "edge_id": "",
-            "action": "休息",
-            "effects": [
-                {
-                    "target_entity_id": neid,
-                    "attribute_name": "vitality",
-                    "operation": "add",
-                    "value": 5,
-                    "description": f"{npc_name}休息中恢复体力",
-                },
-                {
-                    "target_entity_id": neid,
-                    "attribute_name": "hunger",
-                    "operation": "add",
-                    "value": 2,
-                    "description": f"{npc_name}休息时轻微饥饿",
-                },
-            ],
-            "edge_qty_changes": [],
-            "result_text": f"{npc_name}在{zone_id}休息恢复体力",
-        }
-
-    # 默认：在区域中闲逛，消耗一点体力
     return {
         "edge_id": "",
         "action": "闲逛",
@@ -155,10 +134,10 @@ def build_one_fallback_prompt(
             },
             {
                 "target_entity_id": neid,
-                "attribute_name": "hunger",
-                "operation": "add",
+                "attribute_name": "satiety",
+                "operation": "sub",
                 "value": 2,
-                "description": "饥饿增加",
+                "description": "闲逛消耗饱腹",
             },
         ],
         "edge_qty_changes": [],

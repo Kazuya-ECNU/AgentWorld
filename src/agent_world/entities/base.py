@@ -43,8 +43,8 @@ class InteractionResult(BaseModel):
     success: bool
     description: str                    # 描述发生了什么
     loot: list[str] = Field(default_factory=list)   # 获得的物品
-    state_change: ObjectState | None    # 状态变化
-    next_available_at: datetime | None  # 下次可用时间（如果被占用）
+    state_change: ObjectState | None = None  # 状态变化
+    next_available_at: datetime | None = None  # 下次可用时间（如果被占用）
 
 
 class Affordance(BaseModel):

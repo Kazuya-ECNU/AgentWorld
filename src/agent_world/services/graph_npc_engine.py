@@ -11,7 +11,7 @@ import random
 import time
 from typing import Callable
 
-from ..db import NPCDB, get_session
+from ..db import NPCDB, WorldDB, get_session
 from ..entities.manager import get_entity_manager, init_entity_manager
 from ..models.npc import NPC, Position
 from ..models.world import World, Zone
@@ -52,6 +52,9 @@ class GraphNPCEngine:
         self.graph_engine = GraphEngine()
         self._world_initialized = False
         self._ownership_map: dict[str, str] = {}  # obj_eid -> owner_neid
+        self.last_tick_logs: list[str] = []  # _apply_updates 日志
+        self.last_tick_validator_pass = True
+        self.last_tick_edge_count = 0
 
     def add_listener(self, listener: Callable):
         self._listeners.append(listener)
@@ -128,6 +131,14 @@ class GraphNPCEngine:
         with get_session() as conn:
             npc_db = NPCDB(conn)
             db_npcs = npc_db.get_all_npcs()
+
+            # 推进世界时间（游戏内 30 分钟/tick）
+            world_db = WorldDB(conn)
+            world = world_db.get_world()
+            if world:
+                world.world_time.tick(minutes=30)
+                world_db.save_world(world)
+                logger.info(f"[WorldTime] → {world.world_time.to_display_str()}")
 
         if not db_npcs:
             return []
@@ -353,13 +364,11 @@ class GraphNPCEngine:
 
     async def _derive_and_execute(self, npcs) -> list[dict]:
         if self.llm_available and self._resolver:
-            try:
-                return await self._execute_llm_individual(npcs)
-            except asyncio.TimeoutError:
-                logger.warning("LLM 超时")
-            except Exception as e:
-                logger.error(f"LLM 调用失败: {e}")
-        return self._fallback_derive_and_execute(npcs)
+            return await self._execute_llm_individual(npcs)
+        raise RuntimeError(
+            f"LLM 不可用 (llm_available={self.llm_available}, resolver={'有' if self._resolver else '无'})"
+            " — 引擎已停止，不再兜底"
+        )
 
     async def _execute_llm_individual(self, npcs) -> list[dict]:
         """
@@ -518,12 +527,30 @@ class GraphNPCEngine:
                 })
                 logger.info(f"[FALLBACK] {info.get('name','?')} @ {zone} | 兜底")
 
-        # 4. LLM #3 PostProcessor：根据执行结果生成数据更新
-        #    先收集所有 PP 输出，再批量应用（去重）
-        reset_applied_ops()
-        all_pp_updates = []
-        all_involved_models = {}
+        # 4. InteractionLayer: 执行结果 → 边级故事
+        #    LLM 驱动，自由生成每条边的自然语言描述
+        from agent_world.services.interaction_layer import InteractionLayer
+        il = InteractionLayer(resolver=self._resolver)
+        all_er_dicts = [er_data["result"] for er_data in exec_results]
+        edge_results = il.process(all_er_dicts)
 
+        # 提取故事列表 + 边摘要（供 PostProcessor 消费）
+        stories = [e.description for e in edge_results]
+        edge_summaries = [{
+            "source": e.source,
+            "target": e.target,
+            "success": e.success,
+            "chase": e.chase,
+        } for e in edge_results]
+
+        self.last_tick_edge_count = len(edge_results)
+        logger.info(f"[Engine] InteractionLayer: {len(edge_results)} 条唯一边")
+        for er_ in edge_results:
+            logger.info(f"[Engine]   边: {er_.source}↔{er_.target} | {'✅' if er_.success else '❌'} {er_.description[:80]}")
+
+        # 5. 构建所有 NPC 当前状态（供 PP 批处理用）
+        all_involved_models = {}
+        npc_states = []
         for er_data in exec_results:
             er = er_data["result"]
             model = er_data["model"]
@@ -532,45 +559,69 @@ class GraphNPCEngine:
             ent = self.graph_engine.get_entity(npc_eid)
             if not ent:
                 continue
-
             all_involved_models[npc_name] = model
             for nname in er.get("interacted_npcs", []):
                 for nid, nfo in npc_info.items():
                     if nfo["name"] == nname:
                         all_involved_models[nname] = nfo["model"]
-
-            current_state = {
+            npc_states.append({
+                "name": npc_name,
+                "role": er.get("npc_role", "?"),
+                "zone": ent.get_attr("zone_id") or er.get("zone_after", "?"),
                 "vitality": ent.get_attr("vitality") or 100,
-                "hunger": ent.get_attr("hunger") or 50,
+                "satiety": ent.get_attr("satiety") or 50,
                 "mood": ent.get_attr("mood") or 50,
-                "inventory": self.graph_engine.get_inventory_view(npc_eid),
-            }
+                "inventory": dict(self.graph_engine.get_inventory_view(npc_eid)),
+            })
 
-            updates = post_proc.process(
-                npc_name=npc_name,
-                npc_role=er["npc_role"],
-                zone_id=er["zone_after"],
-                raw_decision=er["raw_intent"],
-                execution_result=er,
-                current_state=current_state,
-                nearby_npcs=er_data["zone_npcs"],
-            )
-            if updates:
-                all_pp_updates.extend(updates)
+        # 6. PostProcessor：集中式批处理（一次 LLM 调用，产出全部更新）
+        reset_applied_ops()
+        all_pp_updates = post_proc.process_batch(
+            npc_states, stories, edge_summaries
+        )
 
-        # 批量应用所有 PP 更新（去重由 apply_updates 内部处理）
+        # 7. Validator + Apply
+        self.last_tick_logs = []
+        self.last_tick_validator_pass = True
         if all_pp_updates:
-            # ConservationValidator：校验后 + 类型标记
             validator = ConservationValidator()
             v_out = validator.validate(all_pp_updates)
             if v_out.passed:
-                logs = apply_updates(all_pp_updates, all_involved_models, self.graph_engine)
-                for log in logs:
+                self.last_tick_logs = apply_updates(all_pp_updates, all_involved_models, self.graph_engine)
+                self.last_tick_validator_pass = True
+                for log in self.last_tick_logs:
                     logger.info(log)
             else:
+                self.last_tick_logs = []
+                self.last_tick_validator_pass = False
                 logger.warning(f"[Engine] Conservation validation failed: {v_out.message}")
                 for d in v_out.details:
                     logger.warning(f"[Engine]   {d}")
+                # 校验失败 → 给每个 NPC 写具体失败记忆
+                for er_data in exec_results:
+                    model = er_data["model"]
+                    name = er_data["result"]["npc_name"]
+                    if not name or not hasattr(model, 'add_memory'):
+                        continue
+                    pp_entry = next((u for u in all_pp_updates if u.get("npc_name") == name), None)
+                    if pp_entry:
+                        inv_changes = pp_entry.get("inventory_changes", [])
+                        if inv_changes:
+                            change_desc = "、".join(
+                                f"{ic.get('item_name','?')}{'-' if ic.get('action') in ('remove','consume') else '+'}{ic.get('quantity',0)}"
+                                for ic in inv_changes
+                            )
+                            fail_mem = f"想交易{change_desc}但没成功，缺合适的交易对象"
+                        else:
+                            # 无库存变化时，从 execution result 拿交互意图
+                            interacted = er.get("interacted_npcs", [])
+                            target_names = "、".join(interacted) if interacted else er.get("narrative", "")
+                            target_desc = f"找{target_names}" if interacted else f"{er.get('narrative','')[:40]}"
+                            fail_mem = f"{target_desc}但交易没成功" if target_desc.strip() else "今天没做成什么交易"
+                    else:
+                        fail_mem = "今天想交易但没找到合适的交易对象，交易没完成"
+                    model.add_memory(fail_mem, importance=0.7, location="")
+                    logger.info(f"[Engine] {name}: 写入失败记忆「{fail_mem}」")
 
         # 构建结果行
         for er_data in exec_results:
@@ -615,115 +666,21 @@ class GraphNPCEngine:
         return results
 
     def _fallback_decide_and_exec(self, neid, npc, zone_id, vitality, role) -> dict:
+        # LLM 不可用时的兜底逻辑。正常 LLM 路径不会触发（_derive_and_execute 已设为 LLM 不可用时崩溃）。
+        # 此方法仅在 LLM #1 成功但个别 NPC 的 LLM #2 意图解析失败时触发。
         result = {"zone": zone_id, "action": "等待中", "action_text": "等待中", "vitality": vitality, "inventory": {}}
 
-        hunger = getattr(npc, 'hunger', 50)
-        mood = getattr(npc, 'mood', 50)
-
-        # 1) 体力低 → 休息
-        if vitality < 30:
-            wait_edge = self._find_edge(neid, "_wait")
-            if wait_edge:
-                self.graph_engine.execute_effects([{
-                    "edge_id": wait_edge.edge_id,
-                    "effects": [{"target_entity_id": neid, "attribute_name": "vitality",
-                                 "operation": "add", "value": 20, "description": "休息恢复体力"}],
-                    "result_text": "休息中"
-                }])
-                result["action"] = "休息中"
-                result["action_text"] = "休息中"
-                rest_ent = self.graph_engine.get_entity(neid)
-                result["vitality"] = rest_ent.get_attr("vitality") if rest_ent else 0
-                return result
-
-        # 2) 饥饿 → 去 tavern
-        if hunger > 60 and zone_id != "tavern":
+        # 直接去 tavern（可吃饭可休息，是最稳妥的兜底去处）
+        if zone_id != "tavern":
             move_edge = self._find_edge_to_zone(neid, "tavern")
             if move_edge:
                 self._exec_move(neid, move_edge, "tavern", result)
                 return result
 
-        # 3) 心情差 → 去广场社交
-        if mood < 20 and zone_id != "village_square":
-            move_edge = self._find_edge_to_zone(neid, "village_square")
-            if move_edge:
-                self._exec_move(neid, move_edge, "village_square", result)
-                return result
-
-        # 如果在 tavern
-        if zone_id == "tavern":
-            is_owner = neid in self._ownership_map.values()
-            if is_owner:
-                # 所有者：开关门 / 休息（只使用第一个 tavern 物体）
-                all_edges = self._find_all_edges_to_zone(neid, "tavern")
-                owner_edge = None
-                for e in all_edges:
-                    oeid = e.target_entity_id
-                    if self._ownership_map.get(oeid) == neid:
-                        owner_edge = e
-                        break
-                if not owner_edge and all_edges:
-                    owner_edge = all_edges[0]
-                if owner_edge:
-                    bar_ent = self.graph_engine.get_entity(owner_edge.target_entity_id)
-                    is_closed = bar_ent and bar_ent.get_attr("state") == "locked"
-                    if is_closed:
-                        self.graph_engine.execute_effects([{
-                            "edge_id": owner_edge.edge_id,
-                            "effects": [
-                                {"target_entity_id": owner_edge.target_entity_id,
-                                 "attribute_name": "state", "operation": "set",
-                                 "value": "available", "description": "打开酒馆"},
-                                {"target_entity_id": neid, "attribute_name": "vitality",
-                                 "operation": "sub", "value": 2, "description": "开门"},
-                            ],
-                            "result_text": "打开酒馆开始营业"
-                        }])
-                        result["action"] = "打开酒馆"
-                    else:
-                        self.graph_engine.execute_effects([{
-                            "edge_id": owner_edge.edge_id,
-                            "effects": [
-                                {"target_entity_id": neid, "attribute_name": "hunger",
-                                 "operation": "sub", "value": 10,
-                                 "description": "老板吃饭"},
-                                {"target_entity_id": neid, "attribute_name": "mood",
-                                 "operation": "add", "value": 5,
-                                 "description": "休息提升心情"},
-                            ],
-                            "result_text": "在自家酒馆休息"
-                        }])
-                        result["action"] = "在自家酒馆休息"
-                    result["vitality"] = self.graph_engine.get_entity(neid).get_attr("vitality") or 0
-                    return result
-            # 非所有者：不拦截，让逻辑继续走到工作区域步骤
-
-        # 4) 移动到起始工作区域（ROLE_ZONE_MAP 只在初始化时用，此处直接用 NPC 起始区域）
-        npc_start_zone = getattr(npc, 'position', None) and npc.position.zone_id
-        target_zone = npc_start_zone or "village_square"
-        if zone_id != target_zone:
-            move_edge = self._find_edge_to_zone(neid, target_zone)
-            if move_edge:
-                self._exec_move(neid, move_edge, target_zone, result)
-                return result
-
-        # 5) 在当前区域工作
-        if zone_id in self.ZONE_ACTIONS:
-            interact_edge = self._find_edge_to_zone_object(neid, zone_id)
-            if interact_edge:
-                self._exec_work(neid, interact_edge, zone_id, result)
-                return result
-
-        # 6) 兜底休息
-        wait_edge = self._find_edge(neid, "_wait")
-        if wait_edge:
-            self.graph_engine.execute_effects([{
-                "edge_id": wait_edge.edge_id,
-                "effects": [{"target_entity_id": neid, "attribute_name": "vitality",
-                             "operation": "add", "value": 5, "description": "等待恢复少量体力"}],
-                "result_text": "等待中(1)"
-            }])
-            result["action"] = "等待中"
+        # 在 tavern 工作/吃饭
+        edge = self._find_edge_to_zone(neid, "tavern", local=True)
+        if edge:
+            self._exec_work(neid, edge, "tavern", result)
             return result
 
         return result
@@ -748,10 +705,10 @@ class GraphNPCEngine:
         act_name, cost, items = self.ZONE_ACTIONS.get(zone_id, ("等待中", 3, []))
         effects = [{"target_entity_id": neid, "attribute_name": "vitality",
                     "operation": "sub", "value": cost, "description": "工作消耗体力"}]
-        # tavern 特殊效果：减少饥饿，提升心情
+        # tavern 特殊效果：增加饱腹，提升心情
         if zone_id == "tavern":
-            effects.append({"target_entity_id": neid, "attribute_name": "hunger",
-                           "operation": "sub", "value": 20, "description": "吃饭减少饥饿"})
+            effects.append({"target_entity_id": neid, "attribute_name": "satiety",
+                           "operation": "add", "value": 20, "description": "吃饭增加饱腹"})
             effects.append({"target_entity_id": neid, "attribute_name": "mood",
                            "operation": "add", "value": 10, "description": "吃饭提升心情"})
         instr = {
@@ -808,7 +765,7 @@ class GraphNPCEngine:
     # ─── 记忆 & 衰减 ───
 
     def _apply_memories_and_decay(self, npcs, results):
-        """为每个 NPC 写入记忆 + 被动衰减（饥饿↑ 心情↓）"""
+        """为每个 NPC 写入记忆 + 被动衰减（饱腹↓ 心情↓）"""
         from datetime import datetime
         result_map = {r.get("npc_id"): r for r in results}
 
@@ -818,11 +775,11 @@ class GraphNPCEngine:
             if not ent:
                 continue
 
-            # 被动衰减：每 tick 饥饿 +1，心情 -0.5
-            hunger = ent.get_attr("hunger")
+            # 被动衰减：每 tick 饱腹 -1（逐渐饿），心情 -0.5
+            satiety = ent.get_attr("satiety")
             mood = ent.get_attr("mood")
-            if hunger is not None:
-                ent.set_attr("hunger", min(100, hunger + 1))
+            if satiety is not None:
+                ent.set_attr("satiety", max(0, satiety - 1))
             if mood is not None:
                 ent.set_attr("mood", max(0, mood - 0.5))
 
@@ -863,10 +820,10 @@ class GraphNPCEngine:
             v = ent.get_attr("vitality")
             if v is not None:
                 npc.vitality = max(0, min(100, int(v)))
-            # 饥饿 & 心情
-            h = ent.get_attr("hunger")
-            if h is not None:
-                npc.hunger = max(0, min(100, int(h)))
+            # 饱腹 & 心情
+            s = ent.get_attr("satiety")
+            if s is not None:
+                npc.satiety = max(0, min(100, int(s)))
             m = ent.get_attr("mood")
             if m is not None:
                 npc.mood = max(0, min(100, int(m)))
@@ -911,9 +868,11 @@ class GraphNPCEngine:
 
             except asyncio.CancelledError:
                 break
+            except RuntimeError:
+                raise
             except Exception as e:
                 logger.error(f"Tick 异常: {e}")
-                await asyncio.sleep(600)
+                raise
 
         logger.info("GraphNPCEngine 停止")
 

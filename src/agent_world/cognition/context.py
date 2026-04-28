@@ -124,13 +124,24 @@ class ContextBuilder:
         将所有上下文格式化为一个完整的字符串（供直接发送给 LLM）。
         """
         ctx = self.build_full_prompt(**kwargs)
+        
+        recent = self.build_recent_context()
+        memory_all = self.build_memory_summary()
+        
+        memory_section = f"【你的全部记忆】\n{memory_all}"
+        if recent and recent != "尚无任何经历，尚无最近发生的事":
+            memory_section += f"\n\n【最近发生的事】\n{recent}"
+        
         return (
             f"{ctx['system_prompt']}\n\n"
             f"【世界常识】所有人都知道的基本规律：\n{ctx['common_knowledge']}\n\n"
             f"【性格标签】{ctx['persona']}\n\n"
-            f"【全部记忆】\n{ctx['memory_summary']}\n\n"
-            f"【最近发生的事】{ctx['recent_context']}\n\n"
+            f"{memory_section}\n\n"
             f"【当前状态】{ctx['state']}\n\n"
             f"【对世界的了解】{ctx['knowledge']}\n\n"
-            f"基于以上信息，你现在的目标是什么？请简要说明原因。"
+            f"请基于以上信息，尤其是你的【最近经历】（包括你做了什么、结果如何），"
+            f"来决定你接下来要做什么。\n"
+            f"注意：如果你已经连续做了好几次同样的事（比如连续交易），"
+            f"可以考虑换个活动。\n\n"
+            f"你现在应该设定什么目标？请简要说明原因。"
         )

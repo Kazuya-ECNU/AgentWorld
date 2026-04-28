@@ -116,7 +116,7 @@ class FarmPlot(WorldObject):
 
     def get_affordances(self) -> list[Affordance]:
         if self.growth_state == self.FALLOW:
-            return [Affordance(action="plant", description="播种", energy_cost=15, duration_ticks=1)]
+            return [Affordance(action="plant", description="干农活播种种地", energy_cost=15, duration_ticks=1)]
         elif self.growth_state == self.PLANTED:
             return [Affordance(action="water", description="浇水", energy_cost=5, duration_ticks=1)]
         elif self.growth_state == self.GROWING:
@@ -141,6 +141,15 @@ class FarmPlot(WorldObject):
         return True, "可以操作"
 
     def interact(self, npc_id: str, action: str) -> InteractionResult:
+        # 通用 "farm" 动作 → 根据生长状态自动选择具体动作
+        if action == "farm":
+            if self.growth_state == self.FALLOW:
+                action = "plant"
+            elif self.growth_state == self.PLANTED:
+                action = "water"
+            elif self.growth_state == self.HARVESTABLE:
+                action = "harvest"
+
         if action == "plant":
             self.occupy(npc_id)
             self.growth_state = self.PLANTED
@@ -330,7 +339,7 @@ class TempleAltar(WorldObject):
     def __init__(self, zone_id: str, name: str = "祭坛", **kwargs):
         super().__init__(object_type=ObjectType.TEMPLE_ALTAR, zone_id=zone_id, name=name, **kwargs)
     def get_affordances(self) -> list[Affordance]:
-        return [Affordance(action="pray", description="祈祷", energy_cost=-10, duration_ticks=2)]
+        return [Affordance(action="pray", description="祈祷治疗休息", energy_cost=-10, duration_ticks=2)]
     def can_interact(self, npc_id: str, action: str) -> tuple[bool, str]:
         return True, "可以使用"
     def interact(self, npc_id: str, action: str) -> InteractionResult:
@@ -340,7 +349,7 @@ class BarracksEquipment(WorldObject):
     def __init__(self, zone_id: str, name: str = "训练设施", **kwargs):
         super().__init__(object_type=ObjectType.BARRACKS_EQUIPMENT, zone_id=zone_id, name=name, **kwargs)
     def get_affordances(self) -> list[Affordance]:
-        return [Affordance(action="train", description="训练", energy_cost=15, duration_ticks=3)]
+        return [Affordance(action="train", description="训练巡逻守卫", energy_cost=15, duration_ticks=3)]
     def can_interact(self, npc_id: str, action: str) -> tuple[bool, str]:
         return True, "可以使用"
     def interact(self, npc_id: str, action: str) -> InteractionResult:
@@ -454,6 +463,10 @@ class WorldObjectManager:
     def tick(self):
         """全局 tick，更新所有实体的状态"""
         for obj in self._objects.values():
+            # 释放被占用的物体（下次 tick 即可用）
+            if obj.state == ObjectState.OCCUPIED:
+                obj.release()
+            # 自定义 tick 逻辑（如农田生长）
             if hasattr(obj, "tick"):
                 obj.tick()
 
@@ -522,14 +535,14 @@ class WorldObjectManager:
         zones: list of {id, zone_type, ...}
         """
         zone_types_map = {
-            "market": (ObjectType.STALL, 2),
+            "market": (ObjectType.STALL, 4),
             "farm": (ObjectType.FARM_PLOT, 3),
             "mine": (ObjectType.ORE_VEIN, 2),
-            "tavern": (ObjectType.BAR_COUNTER, 1),
+            "tavern": (ObjectType.BAR_COUNTER, 3),  # 1 吧台 + 2 桌子
             "library": (ObjectType.LIBRARY_DESK, 2),
             "temple": (ObjectType.TEMPLE_ALTAR, 1),
             "barracks": (ObjectType.BARRACKS_EQUIPMENT, 2),
-            "forest": (ObjectType.FOREST_HUNTING_GROUND, 2),
+            "forest": (ObjectType.FOREST_HUNTING_GROUND, 3),
         }
 
         for zone in zones:
@@ -547,8 +560,16 @@ class WorldObjectManager:
                         obj = OreVein(zone_id=zone_id, name=name, richness=0.8)
                     elif obj_type == ObjectType.BAR_COUNTER:
                         obj = BarCounter(zone_id=zone_id, name=name)
+                    elif obj_type == ObjectType.LIBRARY_DESK:
+                        obj = LibraryDesk(zone_id=zone_id, name=name)
+                    elif obj_type == ObjectType.TEMPLE_ALTAR:
+                        obj = TempleAltar(zone_id=zone_id, name=name)
+                    elif obj_type == ObjectType.BARRACKS_EQUIPMENT:
+                        obj = BarracksEquipment(zone_id=zone_id, name=name)
+                    elif obj_type == ObjectType.FOREST_HUNTING_GROUND:
+                        obj = ForestHuntingGround(zone_id=zone_id, name=name)
                     else:
-                        # 跳过未知类型，不创建抽象 WorldObject
+                        # 跳过未知类型
                         continue
                     self.add(obj)
 

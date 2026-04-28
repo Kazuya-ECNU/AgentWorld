@@ -2,7 +2,7 @@
 Post Processor —— LLM #3 后处理层
 
 根据 LLM #1 的原始决策 + LLM #2 的执行结果，生成完整的数据更新：
-- 属性变化（vitality/hunger/mood），包涵交互双方的 NPC
+- 属性变化（vitality/satiety/mood），包涵交互双方的 NPC
 - 库存变化（trade 自动对称）
 - 记忆事件
 - 关系变化
@@ -39,7 +39,7 @@ def _build_post_prompt(
         zone_id: 当前所在区域
         raw_decision: LLM #1 的自然语言决策
         execution_result: IntentExecutor 的执行结果（zone_changed, interacted_npcs等）
-        current_state: 当前状态 {vitality, hunger, mood, inventory}
+        current_state: 当前状态 {vitality, satiety, mood, inventory}
         nearby_npcs: 同区域其他 NPC [{name, role}]
     """
     inv_str = "、".join(
@@ -77,9 +77,14 @@ def _build_post_prompt(
 
 ## 当前属性
 - 体力：{current_state.get('vitality', 100):.0f}/100
-- 饥饿：{current_state.get('hunger', 50):.0f}/100
+- 饱腹：{current_state.get('satiety', 50):.0f}/100
 - 心情：{current_state.get('mood', 50):.0f}/100
 - 持有：{inv_str}
+
+⚠️  属性警戒值（请根据数值自行判断后果）：
+  - 体力 < 30：极度疲劳，必须休息
+  - 饱腹 < 30：极度饥饿，必须进食，降到 0 会饿死
+  - 心情 < 20：心情极差，需要社交或娱乐缓解
 
 ## 原始决策（LLM #1 的意图）
 "{raw_decision}"
@@ -112,7 +117,7 @@ def _build_post_prompt(
 
 规则：
 1. updates 数组包含本次行动影响到的**所有 NPC**。如果 NPC 和其他人交互，必须为双方都生成 update。
-2. attribute_changes：attr 可选 vitality/hunger/mood，op 可选 add/sub/set。体力消耗要合理（去市场 -5~10，巡逻 -3~5，聊天几乎不消耗）。
+2. attribute_changes：attr 可选 vitality/satiety/mood，op 可选 add/sub/set。体力消耗要合理（去市场 -5~10，巡逻 -3~5，聊天几乎不消耗）。
 3. inventory_changes：每个 inventory_changes 元素包含：
    - item_name：物品名
    - action："add" 获得 / "remove" 消耗 / "consume" 消耗不影响库存
@@ -458,7 +463,7 @@ class PostProcessor:
             zone_id: 当前区域
             raw_decision: LLM #1 的原始自然语言决策
             execution_result: ExecutionResult.to_dict()
-            current_state: {vitality, hunger, mood, inventory}
+            current_state: {vitality, satiety, mood, inventory}
             nearby_npcs: 同区 NPC [{name, role}]
 
         Returns:
@@ -536,7 +541,7 @@ class PostProcessor:
         集中式批处理。一次 LLM 调用，产出全部更新。
 
         Args:
-            npc_states: [{name, role, zone, vitality, hunger, mood, inventory}]
+            npc_states: [{name, role, zone, vitality, satiety, mood, inventory}]
             stories: InteractionLayer 生成的故事描述列表
             edge_summaries: [{source, target, success, chase}] 用于校验（可选）
 
@@ -708,13 +713,18 @@ def _build_batch_post_prompt(
     构建集中式 PostProcessor prompt。
 
     Args:
-        npc_states: [{name, role, zone, vitality, hunger, mood, inventory}]
+        npc_states: [{name, role, zone, vitality, satiety, mood, inventory}]
         stories: LLM #3 生成的故事描述列表，每条对应一次交互
     """
     parts = ["你是一个世界模拟引擎的后处理模块。"]
     parts.append("根据 NPC 的当前状态和故事叙事层的描述，推理出数据层面的变化。")
     parts.append("")
     parts.append("==== 当前所有 NPC 状态 ====")
+    parts.append("")
+    parts.append("⚠️  属性警戒值（请根据 NPC 当前数值自行判断）：")
+    parts.append("  - 体力 < 30：极度疲劳，若不休息会导致行动力下降甚至无法行动")
+    parts.append("  - 饱腹 < 30：极度饥饿，若不进食降到 0 会饿死")
+    parts.append("  - 心情 < 20：心情极差，若不缓解可能导致抑郁")
 
     for s in npc_states:
         inv_str = "、".join(
@@ -722,7 +732,7 @@ def _build_batch_post_prompt(
         ) or "空手"
         parts.append(
             f"- {s['name']}（{s.get('role','?')}）@{s.get('zone','?')} | "
-            f"体力{s.get('vitality',100):.0f}/100 饥饿{s.get('hunger',50):.0f}/100 "
+            f"体力{s.get('vitality',100):.0f}/100 饱腹{s.get('satiety',50):.0f}/100 "
             f"心情{s.get('mood',50):.0f}/100 | 持有：{inv_str}"
         )
 
@@ -773,18 +783,32 @@ def _build_batch_post_prompt(
 
 规则：
 1. 为**每一个 NPC** 都生成一条 update，即使什么都没做也要有属性恢复/自然消耗。
-2. attribute_changes: attr 可选 vitality/hunger/mood, op 可选 add/sub。
+2. attribute_changes: attr 可选 vitality/satiety/mood, op 可选 add/sub。
 3. inventory_changes type 必须是以下之一：transfer(交易) / craft(制造) / consume(消耗) / gather(采集)。**不允许其他值**（如 earnings、found、collected 都不是合法类型）。
 4. **transfer 只输出接收方（add + from_npc）**：
    对于 NPC 之间发生的物品转移，你只需要输出每个 NPC **获得了什么**。
    每条 add 类型的 transfer 条目必须标注 `from_npc` 指明来源 NPC。
    **不需要输出 remove/to_npc 条目**——出让方条目由系统自动补全。
-   例如老张卖5小麦给王老板换了10金币：
-     - 老张：金币+10 (from_npc:王老板)
-     - 王老板：小麦+5 (from_npc:老张)
-     [老张的小麦-5 和 王老板的金币-10 由系统自动生成]
-   **注意**：每次交易的双方 NPC 都必须生成自己的 add 条目，不能只写一方。
-   如果只写一方的 add，系统只自动对称这一条，另一方向的对偶也会丢失。
+
+   【黄金规则】每个交易故事必须输出 **N×2 条 add+from_npc 条目**（N=交换物品种类数）：
+   - 每条物品的接收方各一条 add
+   - 每笔交易的钱和货都不能漏
+
+   例子：老张卖5小麦给王老板换了10金币
+   正确输出：
+     NPC 老张:
+       inventory_changes:
+         - {item_name: 金币, action: add, quantity: 10, type: transfer, from_npc: 王老板}
+     NPC 王老板:
+       inventory_changes:
+         - {item_name: 小麦, action: add, quantity: 5, type: transfer, from_npc: 老张}
+   系统自动补全：老张小麦-5, 王老板金币-10
+
+   ⚠️ **输出前自查清单**:
+   - 故事中有没有物品交换？如果有 → 找出所有流动的物品（金币、货物）
+   - 对每种流动的物品：接收方是谁？→ 输出一条 add+from_npc
+   - 总共应该有 N×2 条 add 条目（货币+实物各一方向）？实际输出了几条？
+   - 如果只输出了金币 add 而没有相应货物 add，交易在系统中会断裂！
 4b. **必须标注 from_npc，不要用 to_npc**：
    每个 transfer 类型的 add 条目都必须标注 `from_npc`。
    `to_npc` 字段已弃用（出让方由系统自动生成，不需要你输出）。
@@ -827,6 +851,17 @@ def _build_batch_post_prompt(
   输出：赵酒师 米酒+1 from_npc:田嫂 | 田嫂：(无变化)  ← 田嫂收到了吗？
   正确：赵酒师 干香菇+1 from_npc:田嫂 | 田嫂 米酒+1 from_npc:赵酒师
   双方都写各自的 add 条目。
+
+❌ 错误3b：**只写了金币方向，漏写了货物方向（高频错误!）**
+  故事：老张卖小麦给王老板，收了8金币
+  输出：
+     老张：金币+8 from_npc:王老板
+     王老板：(无变化)  ← 这是错的！王老板付了金币却没收到小麦
+  正确：
+     老张：金币+8 from_npc:王老板  ← 老张收到金币
+     王老板：小麦+？ from_npc:老张  ← 王老板收到小麦
+  每笔交易中：**每个NPC从对方那里获得了什么，就输出一条 add+from_npc**。
+  **自查**：故事里"老张卖小麦给王老板" => 两样东西在移动：金币→老张, 小麦→王老板 => 需要2条add
 
 ❌ 错误4：编造不存在的 type 字段
   输出：type: "consume1" / type: "earnings" / type: "found" / type: "collected"

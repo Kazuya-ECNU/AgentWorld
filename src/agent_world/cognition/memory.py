@@ -21,6 +21,7 @@ class MemoryEntry(BaseModel):
     importance: float = 0.5              # 重要性 0.0~1.0
     related_npc_ids: list[str] = Field(default_factory=list)  # 关联 NPC
     location: str = ""                   # 发生地点
+    goal: str | None = None              # 关联的目标
 
 
 class MemoryStore:
@@ -47,6 +48,7 @@ class MemoryStore:
         importance: float = 0.5,
         related_npcs: list[str] | None = None,
         location: str = "",
+        goal: str | None = None,
     ) -> MemoryEntry:
         """追加一条记忆"""
         entry = MemoryEntry(
@@ -55,6 +57,7 @@ class MemoryStore:
             importance=importance,
             related_npc_ids=related_npcs or [],
             location=location,
+            goal=goal,
         )
         self._entries.append(entry)
         return entry
@@ -139,6 +142,7 @@ class MemoryStore:
                 "importance": e.importance,
                 "related_npc_ids": e.related_npc_ids,
                 "location": e.location,
+                "goal": e.goal,
             }
             for e in self._entries
         ]
@@ -153,6 +157,7 @@ class MemoryStore:
                 importance=d.get("importance", 0.5),
                 related_npc_ids=d.get("related_npc_ids", []),
                 location=d.get("location", ""),
+                goal=d.get("goal", None),
             )
             for d in data
         ]

@@ -20,8 +20,8 @@ def npc_to_entity(npc: NPC) -> Entity:
     # 属性
     ent.set_attr("vitality", getattr(npc, 'vitality', 100),
                  min_value=0, max_value=100, description="体力/活力值")
-    ent.set_attr("hunger", getattr(npc, 'hunger', 50),
-                 min_value=0, max_value=100, description="饥饿度，0=饱 100=极饿")
+    ent.set_attr("satiety", getattr(npc, 'satiety', 50),
+                 min_value=0, max_value=100, description="饱腹度，0=饿 100=饱")
     ent.set_attr("mood", getattr(npc, 'mood', 50),
                  min_value=0, max_value=100, description="心情，0=极差 100=极好")
     ent.set_attr("zone_id", getattr(npc.position, 'zone_id', 'village_square'),

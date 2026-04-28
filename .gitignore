@@ -8,3 +8,18 @@ start.sh
 p2.sh
 run_server.py
 web/start.sh
+# Temp & runtime files
+data/*.db
+data/*.db-*
+data/tick_state.json
+*.swp
+*.swo
+*.swn
+/tmp/
+/trace_tick*
+/report_*
+
+# IDE & OS
+.idea/
+.vscode/
+*~

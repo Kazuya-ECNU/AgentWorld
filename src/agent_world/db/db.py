@@ -142,6 +142,26 @@ def init_db():
         )
     """)
     
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS world_objects (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            object_type TEXT NOT NULL,
+            zone_id TEXT NOT NULL,
+            position_x REAL DEFAULT 0,
+            position_y REAL DEFAULT 0,
+            state TEXT DEFAULT 'available',
+            current_user TEXT DEFAULT NULL,
+            capacity INTEGER DEFAULT 1,
+            current_goods TEXT DEFAULT NULL,
+            growth_stage TEXT DEFAULT NULL,
+            resources_left REAL DEFAULT NULL,
+            uses_left INTEGER DEFAULT NULL,
+            metadata TEXT DEFAULT NULL,
+            updated_at TEXT NOT NULL
+        )
+    """)
+
     # 初始化默认世界
     cursor = conn.execute("SELECT id FROM world WHERE id = 'main_world'")
     if not cursor.fetchone():
