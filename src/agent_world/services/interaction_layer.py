@@ -1,10 +1,17 @@
+# noqa: D104
 """
 Interaction Layer —— 边级交互结果处理器（LLM 驱动）
 
 功能：
   1. 收集所有 NPC 的 ExecutionResult，按边去重
-  2. 对每条唯一边调用 LLM 生成自由格式的自然语言故事描述
-  3. 输出给 PostProcessor 做集中式批处理
+  2. 按连通子图（BFS）分组，每子图 = 一个场景
+  3. 按子图调用 LLM 生成自然语言故事
+  4. 输出给 PostProcessor 做集中式批处理
+
+设计要点：
+  - 拓扑由 graph_engine 提供，BFS 读取 NODE_ONTOLOGY 决定遍历规则
+  - 引擎对节点语义完全透明——prompt 只列节点自有属性，不预先分类
+  - 每连通子图独立调 LLM，无需解析输出做路由
 
 避免分布式更新不一致：
   - 老张↔王老板的 trade 只作为一条边出现一次
@@ -14,14 +21,10 @@ Interaction Layer —— 边级交互结果处理器（LLM 驱动）
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
 from typing import Any
 
 logger = logging.getLogger("interaction_layer")
-
-# 故事标记正则：匹配 【源↔目标】
-_STORY_HEAD_RE = re.compile(r"【([^】]+?)↔([^】]+?)】")
 
 
 # ─── 边级结果 ───
@@ -36,21 +39,57 @@ class EdgeResult:
     description: str        # LLM 生成的自然语言故事描述
     success: bool
     chase: bool = False
-    items_involved: dict[str, int] = field(default_factory=dict)
+    stayed: bool = False        # True=驻足停留（没移动+没交互）
+    obj_order: int = 0
+    source_importance: float = 0.0
+    target_importance: float = 0.0
+
+    @property
+    def label(self) -> str:
+        return f"【{self.source}↔{self.target}】"
+
+    def to_dict(self) -> dict:
+        return {
+            "source": self.source,
+            "target": self.target,
+            "edge_type": self.edge_type,
+            "zone": self.zone,
+            "description": self.description,
+            "success": self.success,
+            "chase": self.chase,
+            "stayed": self.stayed,
+        }
 
 
-# ─── 交互层 ───
+# ─── 连通子图 ───
+
+@dataclass
+class Component:
+    """一个连通子图——对应一个场景。
+
+    由 BFS 从 NPC 节点求出，不包含语义分类。
+    子图内的所有节点（NPC、zone、item、object）统一存放在 entity_ids 中。
+    edges 是归属于该子图的 EdgeResult。
+    """
+    entity_ids: set[str]           # 子图中所有实体的 ID（所有类型）
+    npc_names: set[str]            # 子图中 NPC 的名称（用于匹配 EdgeResult）
+    edges: list[EdgeResult]        # 本子图包含的边
+
+
+# ─── InteractionLayer ───
 
 class InteractionLayer:
     """
-    边级交互处理层。
-    LLM 驱动：给定 NPC 执行结果，自由生成每条边的故事。
+    输入：list[ExecutionResult.to_dict()]
+    输出：list[EdgeResult]（去重后的边级结果，description 为 LLM 生成的故事）
     """
 
     def __init__(self, resolver=None):
         self._resolver = resolver
 
-    def process(self, exec_results: list[dict]) -> list[EdgeResult]:
+    def process(self, exec_results: list[dict], graph_engine=None,
+                world_time_str: str | None = None,
+                tick_duration_str: str | None = None) -> list[EdgeResult]:
         """
         输入：list[ExecutionResult.to_dict()]
         输出：list[EdgeResult]（去重后的边级结果，description 为 LLM 生成的故事）
@@ -62,11 +101,20 @@ class InteractionLayer:
         unique = self._deduplicate(edges)
 
         if self._resolver and unique:
-            # LLM 驱动：生成故事描述
-            story_text = self._ask_llm_for_story(unique, exec_results)
-            self._assign_stories(unique, story_text, exec_results)
+            # 按连通子图分组——每子图 = 一个场景
+            components = self._group_by_subgraph(unique, exec_results, graph_engine)
+            # 逐子图调 LLM：每子图生成一段故事，直接分配
+            for comp in components:
+                prompt = self._build_story_prompt(
+                    comp, exec_results, graph_engine,
+                    world_time_str=world_time_str,
+                    tick_duration_str=tick_duration_str,
+                )
+                story = self._resolver._call_llm(prompt) or ""
+                for e in comp.edges:
+                    e.description = story
         else:
-            # 降级：模板描述（走老逻辑）
+            # 降级：模板描述
             self._fallback_describe(unique, exec_results)
 
         return unique
@@ -77,13 +125,20 @@ class InteractionLayer:
         """从所有执行结果中提取边"""
         results = []
 
+        # 预扫描：收集所有被其他 NPC 交互的目标 NPC
+        # 避免 A 主动找 B 的同时，B 又被生成独自休息的矛盾故事
+        targeted_npcs = set()
+        for er in exec_results:
+            for target_name in er.get("interacted_npcs", []):
+                targeted_npcs.add(target_name)
+
         for er in exec_results:
             src = er["npc_name"]
             zone_after = er.get("zone_after", "?")
             zone_before = er.get("zone_before", "?")
             zone_changed = er.get("zone_changed", False)
 
-            # 区域移动边
+            # 区域移动边（或驻足停留边）
             if zone_changed:
                 results.append(EdgeResult(
                     source=src,
@@ -93,6 +148,20 @@ class InteractionLayer:
                     description="",
                     success=True,
                 ))
+            elif not er.get("interacted_npcs") and not er.get("interacted_objects") and not er.get("unreachable_targets"):
+                # 没移动+没交互→生成驻足停留边，让 LLM #3 有故事可写
+                # 但前提是没人主动来找该 NPC，否则会写出
+                # "田嫂来找铁匠王" 同时 "铁匠王独自在market" 的矛盾故事
+                if src not in targeted_npcs:
+                    results.append(EdgeResult(
+                        source=src,
+                        target=zone_after,
+                        edge_type="npc_zone",
+                        zone=zone_after,
+                        description="",
+                        success=True,
+                        stayed=True,
+                    ))
 
             # NPC 交互边
             for target_name in er.get("interacted_npcs", []):
@@ -152,196 +221,270 @@ class InteractionLayer:
             elif existing.source != e.source:
                 # 双向边合并
                 existing.success = existing.success or e.success
-                existing.chase = existing.chase or e.chase
-                for k, v in e.items_involved.items():
-                    existing.items_involved[k] = existing.items_involved.get(k, 0) + v
 
         return list(sig_map.values())
 
-    # ───── LLM 驱动 ─────
+    def _group_by_subgraph(self, edges: list[EdgeResult], exec_results: list[dict],
+                           graph_engine=None) -> list[Component]:
+        """按连通子图分组（BFS）。
 
-    def _ask_llm_for_story(self, edges: list[EdgeResult], exec_results: list[dict]) -> str:
-        """调用 LLM 为所有边生成故事描述"""
-        prompt = self._build_story_prompt(edges, exec_results)
-        raw = self._resolver._call_llm(prompt)
-        return raw or ""
+        从每个 NPC 节点出发 BFS，遇到 is_leaf / no_same_type 节点停止扩展。
+        同次 BFS 中的全部节点构成一个 Component。
+        """
+        if not graph_engine:
+            return self._group_by_zone_only(edges, exec_results)
 
-    def _build_story_prompt(self, edges: list[EdgeResult], exec_results: list[dict]) -> str:
-        """构建故事生成 prompt"""
-        # NPC 状态索引
-        npc_map: dict[str, dict] = {}
+        # 1. 收集 NPC 信息
+        npc_eids = [er["npc_eid"] for er in exec_results if "npc_eid" in er]
+        npc_name_to_eid = {
+            er["npc_name"]: er["npc_eid"]
+            for er in exec_results if "npc_name" in er and "npc_eid" in er
+        }
+        eid_to_name = {v: k for k, v in npc_name_to_eid.items()}
+
+        # 2. BFS 遍历每个 NPC 的连通分量
+        visited: set[str] = set()
+        components: list[Component] = []
+
+        for start_eid in npc_eids:
+            if start_eid in visited:
+                continue
+
+            component_entity_ids: set[str] = set()
+            component_npc_names: set[str] = set()
+            queue = [start_eid]
+
+            while queue:
+                eid = queue.pop(0)
+                if eid in visited:
+                    continue
+                visited.add(eid)
+                component_entity_ids.add(eid)
+
+                ent = graph_engine.get_entity(eid)
+                if not ent:
+                    continue
+
+                if ent.entity_type == "npc":
+                    npc_name = eid_to_name.get(eid, ent.name)
+                    component_npc_names.add(npc_name)
+
+                # 叶子节点：记录但不扩展
+                if ent.is_leaf:
+                    continue
+
+                # 非叶子：继续扩展（遇同类型邻居才阻断）
+                for conn_id in ent.connected_entity_ids:
+                    if conn_id in visited:
+                        continue
+                    conn_ent = graph_engine.get_entity(conn_id)
+                    if conn_ent and conn_ent.no_same_type and conn_ent.type_id == ent.type_id:
+                        # 同类型阻断：比如 zone→zone 不穿透
+                        continue
+                    queue.append(conn_id)
+
+            if component_npc_names:
+                # 将 edges 分配到对应组件
+                comp_edges = [e for e in edges if e.source in component_npc_names]
+                components.append(Component(
+                    entity_ids=component_entity_ids,
+                    npc_names=component_npc_names,
+                    edges=comp_edges,
+                ))
+
+        return components
+
+    def _group_by_zone_only(self, edges: list[EdgeResult],
+                            exec_results: list[dict]) -> list[Component]:
+        """无 graph_engine 兜底：按 zone name 分组构造单组件。"""
+        npc_zone: dict[str, str] = {}
         for er in exec_results:
             name = er["npc_name"]
-            npc_map[name] = {
-                "role": er.get("npc_role", "?"),
-                "zone": er.get("zone_after", er.get("zone_before", "?")),
-                "raw_intent": er.get("raw_intent", ""),
-            }
+            zone = er.get("zone_after", er.get("zone_before", "?"))
+            npc_zone[name] = zone
 
-        # 构建 prompt 正文
+        # 归入同一个假组件
+        all_npcs = set(npc_zone.keys())
+        return [Component(
+            entity_ids=set(),
+            npc_names=all_npcs,
+            edges=list(edges),
+        )]
+
+    def _build_story_prompt(self, component: Component, exec_results: list[dict],
+                            graph_engine=None, world_time_str: str | None = None,
+                            tick_duration_str: str | None = None) -> str:
+        """为一个连通子图构建故事 prompt。
+
+        子图的节点按原样列出——引擎不替 LLM 区分 NPC/zone/item。
+        每个节点通过自有属性（entity_type、role、desc、traits、attributes）自我描述。
+        """
+        if not graph_engine:
+            return self._legacy_build_prompt(component, exec_results,
+                                             world_time_str, tick_duration_str)
+
+        # NPC 信息索引
+        npc_map: dict[str, dict] = {er["npc_name"]: er for er in exec_results}
+
         parts = [
             "你是世界模拟引擎的故事叙事层。",
-            "你的任务：为本轮 NPC 之间的交互行为写出生动的故事描述。",
-            "完全自由发挥，不要输出任何 JSON 或结构化格式，只写故事。",
+            "你的任务：为以下场景写一段生动的故事。",
+            "完全自由发挥，不要输出任何 JSON 或结构化格式。只写故事。",
             "",
-            "==== 当前世界 ====",
         ]
-
-        for name, info in npc_map.items():
-            parts.append(f"- {name}（{info['role']}）@{info['zone']}")
-
+        if world_time_str:
+            parts.append(f"当前时间：{world_time_str}")
+        if tick_duration_str:
+            parts.append(f"本 tick 时长：{tick_duration_str}")
         parts.append("")
-        parts.append("==== 每个 NPC 本轮的想法和行动 ====")
-        for er in exec_results:
-            name = er["npc_name"]
-            intent = er.get("raw_intent", "（无）")
-            zone_changed = er.get("zone_changed", False)
-            zone_before = er.get("zone_before", "?")
-            zone_after = er.get("zone_after", "?")
-            interacted = er.get("interacted_npcs", [])
-            unreachable = er.get("unreachable_targets", [])
 
-            lines = [f"\n### {name}"]
-            lines.append(f"原本打算：{intent}")
-            if zone_changed:
-                lines.append(f"移动：{zone_before} → {zone_after}")
-            if interacted:
-                lines.append(f"找到：{'、'.join(interacted)}")
-            if unreachable:
-                chase = zone_changed
-                if chase:
-                    lines.append(f"追去{zone_after}找{'、'.join(unreachable)}")
-                else:
-                    lines.append(f"想找{'、'.join(unreachable)}但不在同区未动身")
-            parts.append("\n".join(lines))
-
+        # ── 节点块：子图内所有实体（不区分类型） ──
+        parts.append("===== 场景中存在的角色和物体 =====")
         parts.append("")
-        parts.append("==== 需要故事描述的交互边 ====")
-        for i, e in enumerate(edges, 1):
-            status = "成功" if e.success else "未完成"
-            if e.chase:
-                status += "（追人）"
-            parts.append(f"{i}. {e.source} ↔ {e.target}  [{e.edge_type}] 状态：{status}  区域：{e.zone}")
 
-        parts.append("")
-        parts.append(
-            "请为以上每条交互边，写一段生动的故事描述。"
-            "可以描写 NPC 的动作、对话、心理活动、天气、环境等，完全自由发挥。"
-            "每条边上换行用 --- 分隔即可。"
-            ""
-            "**重要——每条边独立描述**：同 tick 内多条边代表同时发生的平行事件，不是时序先后。"
-            "例如王老板同时跟老张、田嫂、赵酒师三人都做了交易是完全合理的。"
-            "可以自由发挥，写成最终成交、继续讨价还价、或者约定下次都行。"
-            "关键是每条边独立考虑，不要因为一条边在等就把另一条边也压着不写。"
-            ""
-            "### 格式硬性要求——每条故事必须在一行开头加 【源↔目标】 标记！！！"
-            ""
-            "例如："
-            "【王老板↔田嫂】王老板在市场摊位上整理货物，田嫂扛着一袋蔬菜走进市场，两人开始讨价还价。"
-            "【老张↔王老板】老张从酒馆来到市场找到王老板，商量着把存粮卖掉换些金币。"
-            ""
-            "每条故事的第一行必须以【X↔Y】开头，X 和 Y 就是上面列表中的"
-            "交互边两端角色名，**必须与列表中的完全一致**。"
-        )
+        # 先排 zone 类节点（环境描述优先）
+        node_blocks = []
+        for eid in component.entity_ids:
+            ent = graph_engine.get_entity(eid)
+            if not ent:
+                continue
+
+            block_lines = [f"· {ent.name}"]
+
+            # 类型标识
+            type_str = ent.entity_type if ent.entity_type else "?"
+            block_lines.append(f"  类型: {type_str}")
+
+            # 描述（zone/object 有 desc）
+            if ent.desc:
+                block_lines.append(f"  描述: {ent.desc}")
+
+            # 角色（NPC）
+            if ent.role:
+                block_lines.append(f"  身份: {ent.role}")
+
+            # 数值属性（NPC）
+            npc_name = ent.name
+            er = npc_map.get(npc_name)
+            if er:
+                mood_txt = er.get("mood_text", "")
+                sat_txt = er.get("satiety_text", "")
+                vit_txt = er.get("vitality_text", "")
+                if vit_txt:
+                    block_lines.append(f"  体力: {vit_txt}")
+                if sat_txt:
+                    block_lines.append(f"  饱腹: {sat_txt}")
+                if mood_txt:
+                    block_lines.append(f"  心情: {mood_txt}")
+
+                # 记忆（最近几条）
+                mems = er.get("memories", "")
+                if mems:
+                    mem_lines = mems.strip().split("\n")[:3]
+                    block_lines.append(f"  最近经历: {'；'.join(mem_lines)}")
+
+                # 性格特质
+                traits = er.get("traits", [])
+                if traits:
+                    block_lines.append(f"  性格: {'、'.join(str(t) for t in traits[:3])}")
+
+                # 想法
+                intent = er.get("raw_intent", "")
+                if intent:
+                    block_lines.append(f"  想法: {intent}")
+
+            # 物品数量（item 节点持有持有者视角）
+            node_blocks.append("\n".join(block_lines))
+
+        parts.append("\n\n".join(node_blocks) if node_blocks else "(无节点信息)")
+
+        # ── 库存描述 ──
+        if component.npc_names:
+            inventory_lines = []
+            for npc_name in sorted(component.npc_names):
+                er = npc_map.get(npc_name)
+                if er and "npc_eid" in er:
+                    inv = graph_engine.get_inventory_view(er["npc_eid"])
+                    if inv:
+                        items = [f"{i['item_name']}x{i['quantity']}" for i in inv]
+                        inventory_lines.append(f"{npc_name}带着: {'、'.join(items)}")
+            if inventory_lines:
+                parts.append("")
+                parts.append("【库存】")
+                for line in inventory_lines:
+                    parts.append(f"  · {line}")
+
+        # ── 边描述 ──
+        if component.edges:
+            parts.append("")
+            parts.append("【本 tick 发生的交互】")
+            for e in component.edges:
+                if e.edge_type == "npc_zone" and e.stayed:
+                    parts.append(f"  · {e.source} 在原地驻足")
+                elif e.edge_type == "npc_zone":
+                    parts.append(f"  · {e.source} 来到此处")
+                elif e.edge_type == "npc_npc" and not e.success:
+                    parts.append(f"  · {e.source} 试图找 {e.target}，但没成功")
+                elif e.edge_type == "npc_npc":
+                    parts.append(f"  · {e.source} 与 {e.target} 有互动")
+                elif e.edge_type == "npc_object":
+                    parts.append(f"  · {e.source} 使用 {e.target}")
+            parts.append("")
+
+        # ── 输出指令 ──
+        parts.append("===== 输出 =====")
+        parts.append("请为以上场景写一段生动的故事。一段即可。")
+        parts.append("用【场景】开头，后面不要加标题名称。")
+        parts.append("示例：")
+        parts.append("【场景】清晨的阳光洒在市集的石板路上...")
 
         return "\n".join(parts)
 
-    @staticmethod
-    def _match_paragraph_to_label(
-        para: str, edge_by_label: dict[str, EdgeResult]
-    ) -> str | None:
-        """检查一段文本是否以【X↔Y】开头，返回匹配的 label"""
-        for label in edge_by_label:
-            if para.startswith(f"【{label}】"):
-                return label
-        return None
-
-    def _assign_stories(self, edges: list[EdgeResult], story_text: str, exec_results: list[dict]):
-        """将 LLM 返回的故事文本按边分配"""
-        if not story_text.strip():
-            self._fallback_describe(edges, exec_results)
-            return
-
-        # 按 --- 分隔符拆分段落
-        paragraphs = [p.strip() for p in story_text.split("---") if p.strip()]
-
-        # 按标记匹配：故事必须以【源↔目标】开头
-        edge_by_label: dict[str, EdgeResult] = {}
-        for e in edges:
-            label = f"{e.source}↔{e.target}"
-            edge_by_label[label] = e
-
-        assigned = set()
-        for para in paragraphs:
-            matched = self._match_paragraph_to_label(para, edge_by_label)
-            if matched:
-                # 如果段落内有多个故事标记，说明 --- 拆分不充分
-                # 只取第一个标记对应的故事内容，剩下的让正则兜底处理
-                next_match = _STORY_HEAD_RE.search(para, 1)  # 从第二个字符开始找
-                if next_match:
-                    # 段落包含多个故事 → 截取第一段，不标记已分配
-                    edge_by_label[matched].description = para[:next_match.start()].strip()
-                    assigned.add(matched)
-                    logger.info(f"[IL] ⚠️  多故事段落，截取第一个: {matched}")
-                else:
-                    edge_by_label[matched].description = para
-                    assigned.add(matched)
+    def _legacy_build_prompt(self, component: Component, exec_results: list[dict],
+                             world_time_str: str | None = None,
+                             tick_duration_str: str | None = None) -> str:
+        """无 graph_engine 兜底用 prompt"""
+        parts = [
+            "你是世界模拟引擎的故事叙事层。",
+            "完全自由发挥，不要输出任何 JSON 或结构化格式。只写故事。",
+            "",
+        ]
+        if world_time_str:
+            parts.append(f"当前时间：{world_time_str}")
+        if tick_duration_str:
+            parts.append(f"本 tick 时长：{tick_duration_str}")
+        parts.append("")
+        parts.append("==== 每个 NPC 的想法 ====")
+        for er in exec_results:
+            name = er["npc_name"]
+            parts.append(f"【{name}】{er.get('raw_intent', '无')}")
+        parts.append("")
+        parts.append("==== 交互 ====")
+        for e in component.edges:
+            if e.edge_type == "npc_zone" and e.stayed:
+                parts.append(f"- {e.source}@{e.zone}驻足")
+            elif e.edge_type == "npc_npc":
+                parts.append(f"- {e.source}↔{e.target}")
+            elif e.edge_type == "npc_object":
+                parts.append(f"- {e.source}使用{e.target}")
             else:
-                logger.info(f"[IL] 无法匹配标记的故事段落（前60字）：{para[:60]}...")
-
-        # 如果 --- 拆分覆盖不佳（<50%），从原始文本按 【】 标记直接提取
-        if len(assigned) < len(edges) * 0.5:
-            logger.info(
-                f"[IL] --- 拆分覆盖不足 ({len(assigned)}/{len(edges)})，"
-                "尝试从原始文本按标记提取"
-            )
-            for m in _STORY_HEAD_RE.finditer(story_text):
-                src, tgt = m.group(1), m.group(2)
-                label = f"{src}↔{tgt}"
-                if label in edge_by_label and label not in assigned:
-                    # 从标记开始到下一个标记或结尾
-                    story_end = _STORY_HEAD_RE.search(story_text, m.end())
-                    body = (
-                        story_text[m.start():story_end.start()].strip()
-                        if story_end
-                        else story_text[m.start():].strip()
-                    )
-                    edge_by_label[label].description = body
-                    assigned.add(label)
-                    logger.info(f"[IL] ✅ 正则提取匹配: {label}")
-
-        # 未匹配到的边用模板
-        for label, e in edge_by_label.items():
-            if label not in assigned:
-                e.description = f"{e.source}与{e.target}发生了交互"
-                logger.info(f"[IL] {label}: 无匹配故事，使用模板")
-
-        logger.info(f"[IL] LLM 生成 {len(paragraphs)} 段故事，匹配到 {len(assigned)}/{len(edges)} 条边")
-
-    # ───── 降级：模板描述 ─────
+                parts.append(f"- {e.source}→{e.target}")
+        parts.append("")
+        parts.append("为以上场景写一段故事。")
+        return "\n".join(parts)
 
     def _fallback_describe(self, edges: list[EdgeResult], exec_results: list[dict]):
-        """LLM 不可用时用回模板"""
-        raw_intents = {er["npc_name"]: er.get("raw_intent", "") for er in exec_results}
-
+        """降级：不用 LLM，直接用模板生成描述"""
         for e in edges:
             if e.edge_type == "npc_zone":
-                e.description = f"{e.source}前往{e.target}"
+                if e.stayed:
+                    e.description = f"{e.source}在{e.zone}待了一会，没有特别的事情发生。"
+                else:
+                    e.description = f"{e.source}来到了{e.zone}。"
             elif e.edge_type == "npc_npc":
                 if e.success:
-                    e.description = (
-                        f"{e.source}和{e.target}在{e.zone}碰头，"
-                        f"双方可以在此进行交易或社交。"
-                    )
-                elif e.chase:
-                    e.description = (
-                        f"{e.source}前往{e.zone}寻找{e.target}，"
-                        f"但未能立刻见面"
-                    )
+                    e.description = f"{e.source}找到了{e.target}，两人聊了一会儿。"
                 else:
-                    e.description = (
-                        f"{e.source}想找{e.target}但{e.target}不在同一个区域，"
-                        f"也没有动身去找"
-                    )
+                    e.description = f"{e.source}想找{e.target}，但{e.target}不在这里。"
             elif e.edge_type == "npc_object":
-                e.description = f"{e.source}在{e.zone}使用{e.target}"
+                e.description = f"{e.source}使用了{e.target}。"

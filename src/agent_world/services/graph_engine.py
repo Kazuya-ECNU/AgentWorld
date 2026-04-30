@@ -1,382 +1,537 @@
 """
-交互图引擎 —— 管理所有实体的交互图，驱动 LLM 推导交互边。
+纯拓扑图引擎 —— 唯一的数据写入路径
 
-纯数据容器：
-  1. 注册/注销实体
-  2. 维护实体间拓扑连接
-  3. 管理边（创建 / 设置数量 / 查询）
-  4. 解析 LLM 响应
-  5. 执行副效应（属性变更 / 库存变更）
+职责：
+  1. 管理实体（Entity）注册和连接
+  2. 管理边（InteractionEdge）创建和数量修改
+  3. 提供拓扑视图（1-hop 子图、库存视图）
+  4. 【唯一】执行 LLM #2 的结构变更指令（connect/disconnect/set_qty）
+  5. 【唯一】执行 LLM #4 的数值变更指令（{src, tgt, delta}）
 
-LLM 推理不在本引擎中——由 NPC Prompt Builder + graph_npc_engine 逐 NPC 处理。
+设计原则：任何数据修改必须经过此引擎。LLM 通过结构化指令间接写入。
 """
 
 from __future__ import annotations
-
-import json
 import logging
+import uuid
+from copy import deepcopy
 from typing import Any
-from ..models.interaction import (
-    InteractionGraph, InteractionEdge, EntityInterface,
-    EntityAttribute, AttributeEffect,
-)
-from ..entities.base_entity import Entity
 
-logger = logging.getLogger("graph_engine")
+from ..entities.base_entity import Entity
+from ..config.node_ontology import prefix_to_type_id
+from ..models.interaction import InteractionGraph, InteractionEdge
+
+logger = logging.getLogger(__name__)
+
+EdgeOperation = dict[str, Any]
+"""{op: "connect"|"disconnect"|"set_qty"|"delta", src: str, tgt: str, qty: int}"""
 
 
 class GraphEngine:
-    """
-    交互图引擎——纯数据容器。
-
-    职责：
-    1. 实体注册 / 注销
-    2. 拓扑连接（connect / build_graph）
-    3. 边管理（get_or_create_edge / set_edge_quantity / modify_edge_quantity）
-    4. 查询（get_inventory_view / get_held_quantity）
-    5. LLM 响应解析 + 效果执行
-    """
+    """纯拓扑图引擎"""
 
     def __init__(self):
         self._entities: dict[str, Entity] = {}
-        self.graph = InteractionGraph()
+        self._graph: InteractionGraph = InteractionGraph()
+        # 边索引加速：{(src, tgt): InteractionEdge}
+        self._edge_by_pair: dict[tuple[str, str], InteractionEdge] = {}
 
-    # ─── 实体注册 ───
+    # ═══════════════════════════════════════════
+    # 实体管理
+    # ═══════════════════════════════════════════
 
     def register_entity(self, entity: Entity):
+        """注册实体（替换已存在的同名实体）"""
+        if entity.entity_id in self._entities:
+            # 保留连接信息
+            entity.connected_entity_ids = self._entities[entity.entity_id].connected_entity_ids
         self._entities[entity.entity_id] = entity
-
-    def unregister_entity(self, entity_id: str):
-        self._entities.pop(entity_id, None)
-        self.graph.edges = [e for e in self.graph.edges
-                            if e.source_entity_id != entity_id
-                            and e.target_entity_id != entity_id]
-
-    def get_entity(self, entity_id: str) -> Entity | None:
-        return self._entities.get(entity_id)
+        logger.debug(f"[Graph] 注册实体: {entity.entity_id} ({entity.name})")
 
     def all_entities(self) -> list[Entity]:
         return list(self._entities.values())
 
-    def get_npcs(self) -> list[Entity]:
-        return [e for e in self._entities.values() if e.entity_type == "npc"]
-
-    # ─── 拓扑构建 ───
-
-    def connect(self, from_id: str, to_id: str):
-        """在两个实体之间建立拓扑连接"""
-        src = self._entities.get(from_id)
-        dst = self._entities.get(to_id)
-        if src and dst:
-            src.connect_to(to_id)
-            dst.connect_to(from_id)
-
-    def build_graph(self):
+    def resolve_eid(self, raw: str) -> str | None:
+        """将原始引用解析为实体 ID。
+        优先精确匹配，fallback 按名称匹配或按前缀匹配。
+        LLM 可能输出物品名（如 '小麦'/'item_小麦'）而非实体 ID。
         """
-        基于实体间的拓扑连接生成交互边。
-        每个连接生成两条单向边（A→B 和 B→A），每条边覆盖所有接口组合。
+        # 1. 精确匹配
+        if raw in self._entities:
+            return raw
+        # 2. 按名称匹配
+        for eid, ent in self._entities.items():
+            if ent.name == raw:
+                return eid
+        # 3. 去掉 'item_' 前缀后按名称匹配
+        name = raw.removeprefix("item_")
+        for eid, ent in self._entities.items():
+            if ent.name == name:
+                return eid
+        # 4. 按 eid 前缀匹配（如 'item_小麦' → 实际 eid 可能含 hash）
+        for eid in self._entities:
+            if eid.endswith(raw.removeprefix("item_")):
+                return eid
+        return None
+
+    def get_entity(self, entity_id: str) -> Entity | None:
+        return self._entities.get(entity_id)
+
+    def find_entity_by_name(self, name: str) -> Entity | None:
+        """按名称查找实体"""
+        for ent in self._entities.values():
+            if ent.name == name:
+                return ent
+        return None
+
+    # ═══════════════════════════════════════════
+    # 边管理（纯拓扑）
+    # ═══════════════════════════════════════════
+
+    def connect(self, src_eid: str, tgt_eid: str, qty: int = 0) -> InteractionEdge:
         """
-        self.graph.edges.clear()
-        edge_idx = 0
+        创建一条边：src → tgt。
 
-        for eid, entity in self._entities.items():
-            for connected_id in entity.connected_entity_ids:
-                target = self._entities.get(connected_id)
-                if not target:
-                    continue
+        如果边已存在，更新 quantity 并激活。
+        如果实体不存在，自动注册占位实体。
+        自动建立 Entity 级别的连接。
+        """
+        # 自动注册占位
+        for eid in (src_eid, tgt_eid):
+            if eid not in self._entities:
+                name = _extract_name_from_eid(eid)
+                ent = Entity(entity_id=eid, name=name, entity_type=_infer_type(eid))
+                self._entities[eid] = ent
+                logger.info(f"[Graph] 自动注册占位实体: {eid} ({name})")
 
-                for src_iface in entity.interfaces.values():
-                    for dst_iface in target.interfaces.values():
-                        edge = InteractionEdge(
-                            edge_id=f"e_{edge_idx}",
-                            source_entity_id=eid,
-                            source_interface_id=src_iface.interface_id,
-                            target_entity_id=connected_id,
-                            target_interface_id=dst_iface.interface_id,
-                            description=f"{entity.name} 通过 {src_iface.name} 与 {target.name} 的 {dst_iface.name} 交互",
-                            is_active=True,
-                        )
-                        self.graph.edges.append(edge)
-                        edge_idx += 1
+        # 已有边 → 更新 qty
+        existing = self._edge_by_pair.get((src_eid, tgt_eid))
+        if existing:
+            existing.quantity = qty
+            existing.is_active = True
+            return existing
 
-    # ─── 库存边管理 ───
-
-    def get_or_create_edge(self, src_eid: str, src_iface: str,
-                            tgt_eid: str, tgt_iface: str) -> InteractionEdge:
-        """查找已有的边，没有则创建（不重新生成索引）"""
-        for e in self.graph.edges:
-            if (e.source_entity_id == src_eid
-                and e.source_interface_id == src_iface
-                and e.target_entity_id == tgt_eid
-                and e.target_interface_id == tgt_iface):
-                return e
+        # 新建边
+        from ..models.interaction import InteractionEdge
         edge = InteractionEdge(
-            edge_id=f"e_{len(self.graph.edges)}",
+            edge_id=f"e_{uuid.uuid4().hex[:12]}",
             source_entity_id=src_eid,
-            source_interface_id=src_iface,
             target_entity_id=tgt_eid,
-            target_interface_id=tgt_iface,
-            description="库存持有关系",
+            quantity=qty,
             is_active=True,
-            quantity=0,
         )
-        self.graph.edges.append(edge)
+        self._graph.add_edge(edge)
+        self._edge_by_pair[(src_eid, tgt_eid)] = edge
+
+        # 实体间连接
+        self._entities[src_eid].connect_to(tgt_eid)
+
+        logger.debug(f"[Graph] 连接: {src_eid} ──▸ {tgt_eid} (qty={qty})")
         return edge
 
-    def set_edge_quantity(self, src_eid: str, tgt_eid: str, qty: int):
-        """设置两个实体间的库存数量（自动在持有→可持有间查找）"""
-        for e in self.graph.edges:
-            if e.source_entity_id == src_eid and e.target_entity_id == tgt_eid \
-               and e.source_interface_id.endswith('_hold') \
-               and e.target_interface_id.endswith('_holdable'):
-                e.quantity = max(0, qty)
-                return
-        # 没找到匹配边则创建一条
-        edge = self.get_or_create_edge(src_eid, f"{src_eid[:12]}_hold",
-                                        tgt_eid, f"{tgt_eid[:12]}_holdable")
-        edge.quantity = max(0, qty)
+    def disconnect(self, src_eid: str, tgt_eid: str) -> bool:
+        """移除边。返回是否成功。"""
+        removed = self._graph.remove_edge(src_eid, tgt_eid)
+        if (src_eid, tgt_eid) in self._edge_by_pair:
+            del self._edge_by_pair[(src_eid, tgt_eid)]
+        if src_eid in self._entities:
+            self._entities[src_eid].disconnect_from(tgt_eid)
+        if removed:
+            logger.debug(f"[Graph] 断开连接: {src_eid} ─/─ {tgt_eid}")
+        return removed
 
-    def modify_edge_quantity(self, src_eid: str, tgt_eid: str, delta: int) -> int:
-        """增减库存数量，返回实际变化值"""
-        old_qty = 0
-        for e in self.graph.edges:
-            if e.source_entity_id == src_eid and e.target_entity_id == tgt_eid \
-               and e.source_interface_id.endswith('_hold') \
-               and e.target_interface_id.endswith('_holdable'):
-                old_qty = e.quantity
-                new_qty = max(0, e.quantity + delta)
-                delta_actual = new_qty - e.quantity
-                e.quantity = new_qty
-                return delta_actual
-        # 不存在则创建
-        edge = self.get_or_create_edge(src_eid, f"{src_eid[:12]}_hold",
-                                        tgt_eid, f"{tgt_eid[:12]}_holdable")
-        old_qty = 0
-        edge.quantity = max(0, delta)
-        return edge.quantity
-
-    def get_held_quantity(self, entity_id: str, item_entity_id: str) -> int:
-        """查询某个实体持有某个物品的数量"""
-        for e in self.graph.edges:
-            if e.source_entity_id == entity_id and e.target_entity_id == item_entity_id \
-               and e.source_interface_id.endswith('_hold'):
-                return e.quantity
-        return 0
-
-    def get_inventory_view(self, entity_id: str) -> dict[str, int]:
-        """返回实体的库存视图 {item_name: qty}"""
-        result = {}
-        for e in self.graph.edges:
-            if e.source_entity_id == entity_id and e.quantity > 0 \
-               and e.source_interface_id.endswith('_hold'):
-                item_ent = self._entities.get(e.target_entity_id)
-                if item_ent:
-                    result[item_ent.name] = e.quantity
-        return result
-
-    # ─── 筛选 NPC 的边 ───
-
-    def get_npc_outgoing_edges(self, npc_eid: str) -> list[InteractionEdge]:
-        """获取某 NPC 为源的所有边（只含活跃边）"""
-        return [e for e in self.graph.edges
-                if e.source_entity_id == npc_eid and e.is_active]
-
-    def get_edge_readable_descriptions(self, edges: list[InteractionEdge]) -> dict[str, str]:
-        """构建边 ID → 可读描述的映射（用于 LLM prompt）"""
-        result = {}
-        for e in edges:
-            src_name = "?"
-            dst_name = "?"
-            src_ent = self._entities.get(e.source_entity_id)
-            dst_ent = self._entities.get(e.target_entity_id)
-            if src_ent:
-                src_name = src_ent.name
-            if dst_ent:
-                dst_name = dst_ent.name
-            src_iface_name = e.source_interface_id.split('_')[-1] if '_' in e.source_interface_id else e.source_interface_id
-            dst_iface_name = e.target_interface_id.split('_')[-1] if '_' in e.target_interface_id else e.target_interface_id
-            result[e.edge_id] = f"{src_name}[{src_iface_name}] → {dst_name}[{dst_iface_name}]"
-        return result
-
-    # ─── LLM 响应解析 ───
-
-    def parse_llm_response(self, text: str) -> list[dict]:
-        """从 LLM 返回文本中提取交互指令列表"""
-        text = text.strip()
-
-        # 策略1：提取 ```json ... ``` / ``` ... ```
-        if '```' in text:
-            blocks = text.split('```')
-            for i, block in enumerate(blocks):
-                block = block.strip()
-                if block.startswith('json'):
-                    block = block[4:].strip()
-                if block.startswith('[') or block.startswith('{'):
-                    text = block
-                    break
-
-        # 策略2：提取 JSON 数组 [...] 或 JSON 对象 {...}
-        stack = []
-        start = -1
-        for i, ch in enumerate(text):
-            if ch == '[' or ch == '{':
-                if not stack:
-                    start = i
-                stack.append(ch)
-            elif ch == ']':
-                if stack and stack[-1] == '[':
-                    stack.pop()
-                    if not stack and start >= 0:
-                        text = text[start:i+1]
-                        break
-            elif ch == '}':
-                if stack and stack[-1] == '{':
-                    stack.pop()
-                    if not stack and start >= 0:
-                        text = text[start:i+1]
-                        break
-
-        try:
-            parsed = json.loads(text)
-            if isinstance(parsed, dict):
-                return [parsed]
-            if isinstance(parsed, list):
-                return parsed
-        except json.JSONDecodeError:
-            pass
-        return []
-
-    def _apply_effects(self, effects: list[dict]):
-        """执行属性变更列表，不依赖边 ID"""
-        for eff in effects:
-            target_id = eff.get("target_entity_id", "")
-            target = self._entities.get(target_id)
-            if not target:
-                continue
-            attr_name = eff.get("attribute_name", "")
-            op = eff.get("operation", "set")
-            value = eff.get("value", 0)
-            if op in ("add", "sub"):
-                delta = float(value) if op == "add" else -float(value)
-                target.modify_attr(attr_name, delta)
-            else:
-                target.set_attr(attr_name, value)
-
-    def _apply_qty_changes(self, qty_changes: list[dict]):
-        """执行库存变更列表，不依赖边 ID"""
-        for qc in qty_changes:
-            src = qc.get("source_entity_id", "")
-            tgt = qc.get("target_entity_id", "")
-            delta = qc.get("delta", 0)
-            if src and tgt and delta != 0:
-                self.modify_edge_quantity(src, tgt, delta)
-
-    def ensure_entity_exists(self, entity_id: str, name: str,
-                               entity_type: str = "item") -> str:
-        """
-        确保实体存在，如果不存在则通过实体最小化原则自动创建。
-        返回最终的 entity_id。
-        """
-        # 先按 entity_id 找
-        existing = self._entities.get(entity_id)
-        if existing:
-            return entity_id
-
-        # 再按名字找
-        for e in self._entities.values():
-            if e.name == name and e.entity_type == entity_type:
-                return e.entity_id
-
-        # 通过实体最小化原则推导和注册
-        from ..entities.derivation import EntityDerivationEngine
-        engine = EntityDerivationEngine(self)
-        return engine.derive_and_register(entity_id, name, entity_type)
-
-    def execute_npc_instruction(self, instr: dict) -> str:
-        """执行单条 NPC 指令，返回 result_text"""
-        edge_id = instr.get("edge_id", "")
-        edge = next((e for e in self.graph.edges if e.edge_id == edge_id), None)
-
-        action = instr.get("action", "") or "交互中"
-        result_text = instr.get("result_text", action)
-        effects = instr.get("effects", [])
-        qty_changes = instr.get("edge_qty_changes", [])
-
-        # 1. 自动注册不存在的实体（effects 中的 target + qty_changes 中的 target）
-        self._auto_register_missing(effects, qty_changes)
-
-        # 2. 属性变更
-        self._apply_effects(effects)
-
-        # 3. 库存变更
-        self._apply_qty_changes(qty_changes)
-
+    def get_edge(self, src_eid: str, tgt_eid: str) -> InteractionEdge | None:
+        """获取边（双向查询）"""
+        edge = self._edge_by_pair.get((src_eid, tgt_eid))
         if edge:
-            edge.is_active = True
-            edge.result_text = result_text
-            edge.effects = effects
-            return result_text
-        else:
-            return result_text or f"[无对应边] {edge_id}"
+            return edge
+        edge = self._edge_by_pair.get((tgt_eid, src_eid))
+        return edge
 
-    def _auto_register_missing(self, effects: list[dict], qty_changes: list[dict]):
+    def get_outgoing_edges(self, entity_id: str) -> list[InteractionEdge]:
+        """获取实体的所有出边"""
+        return [
+            e for e in self._graph.edges
+            if e.source_entity_id == entity_id
+        ]
+
+    def get_incoming_edges(self, entity_id: str) -> list[InteractionEdge]:
+        """获取实体的所有入边"""
+        return [
+            e for e in self._graph.edges
+            if e.target_entity_id == entity_id
+        ]
+
+    def get_edges_between(self, eid_a: str, eid_b: str) -> list[InteractionEdge]:
+        """获取两个实体之间的所有边（双向）"""
+        result = []
+        for e in self._graph.edges:
+            if (e.source_entity_id == eid_a and e.target_entity_id == eid_b) \
+               or (e.source_entity_id == eid_b and e.target_entity_id == eid_a):
+                result.append(e)
+        return result
+
+    # ═══════════════════════════════════════════
+    # 数量操作（LLM #4 输出执行）
+    # ═══════════════════════════════════════════
+
+    def set_edge_quantity(self, src_eid: str, tgt_eid: str, qty: int) -> bool:
+        """设置边的数量"""
+        edge = self.get_edge(src_eid, tgt_eid)
+        if not edge:
+            logger.warning(f"[Graph] set_qty: 边不存在 {src_eid}→{tgt_eid}")
+            return False
+        edge.quantity = qty
+        edge.is_active = True
+        logger.debug(f"[Graph] set_qty: {src_eid}→{tgt_eid} = {qty}")
+        return True
+
+    def modify_edge_quantity(self, src_eid: str, tgt_eid: str, delta: int) -> bool:
+        """修改边的数量（delta 可为正负）"""
+        edge = self.get_edge(src_eid, tgt_eid)
+        if not edge:
+            # 自动创建边（用于 0→正值 的首次转移）
+            if delta > 0:
+                self.connect(src_eid, tgt_eid, delta)
+                return True
+            logger.warning(f"[Graph] modify_qty: 边不存在 {src_eid}→{tgt_eid}, delta={delta}")
+            return False
+        new_qty = edge.quantity + delta
+        if new_qty < 0:
+            logger.warning(
+                f"[Graph] modify_qty: {src_eid}→{tgt_eid} {delta}"
+                f" 会将 qty 从 {edge.quantity} 变为 {new_qty}（截断为 0）"
+            )
+            new_qty = 0
+        edge.quantity = new_qty
+        if new_qty == 0:
+            self.disconnect(src_eid, tgt_eid)
+        logger.debug(f"[Graph] modify_qty: {src_eid}→{tgt_eid} {delta:+d} → {new_qty}")
+        return True
+
+    def modify_entity_attr(self, entity_id: str, attr: str, delta: float, clamp: bool = True) -> bool:
+        """修改实体的属性值（delta 可为正负）"""
+        ent = self.get_entity(entity_id)
+        if not ent:
+            logger.warning(f"[Graph] modify_attr: 实体不存在 {entity_id}")
+            return False
+        current = ent.attributes.get(attr, 0.0) or 0.0
+        new_val = current + delta
+        if clamp:
+            new_val = max(0.0, min(100.0, new_val))
+        ent.attributes[attr] = new_val
+        logger.debug(f"[Graph] modify_attr: {entity_id}.{attr} {delta:+} → {new_val:.0f}")
+        return True
+
+    def apply_edge_operations(self, ops: list[EdgeOperation]) -> dict[str, Any]:
         """
-        自动创建 LLM 引用但不存在的实体（使用实体最小化原则）。
+        批量执行边操作。
+        这是 LLM #2 输出（结构变更）和 LLM #4 输出（数值变更）的统一执行入口。
 
-        代替旧的推断类型逻辑，采用三步推导：
-          1. 尝试从已有实体通过制造链推导
-          2. 递归分解为基本实体
-          3. 无法推导时注册为新基础实体
+        支持的 op:
+          "connect"    — 创建边 ({src, tgt, qty})  [, qty 可选]
+          "disconnect" — 移除边 ({src, tgt})
+          "set_qty"    — 设置数量 ({src, tgt, qty})
+          "delta"      — 增减数量 ({src, tgt, delta})
+
+        返回: {status: "ok"|"partial"|"failed", results: [...]}
         """
-        from ..entities.derivation import EntityDerivationEngine
-        engine = EntityDerivationEngine(self)
+        results = []
+        status = "ok"
 
-        # Process effects
-        for eff in effects:
-            tid = eff.get("target_entity_id", "")
-            if not tid or tid in self._entities:
+        for op in ops:
+            op_type = op.get("op", "")
+            src = op.get("src", "")
+            tgt = op.get("tgt", "")
+
+            # attr 操作使用 target 字段，不要求 src/tgt
+            if op_type != "attr" and (not src or not tgt):
+                results.append({"op": op_type, "status": "skipped", "reason": "缺少 src 或 tgt"})
                 continue
-            # Infer type from attribute name
-            attr = eff.get("attribute_name", "")
-            if attr in ("vitality", "satiety", "mood", "strength"):
-                etype = "npc"
-            elif attr in ("status", "state"):
-                etype = "object"
-            else:
-                etype = "item"
-            # Extract a readable name
-            name = self._extract_name_from_eid(tid, eff.get("description", ""))
-            engine.derive_and_register(tid, name, etype)
 
-        # Process qty_changes
-        for qc in qty_changes:
-            for key in ("source_entity_id", "target_entity_id"):
-                eid = qc.get(key, "")
-                if not eid or eid in self._entities:
-                    continue
-                # Infer type from eid prefix
-                if "npc_" in eid:
-                    etype = "npc"
-                elif "obj_" in eid:
-                    etype = "object"
+            # 解析 src/tgt (LLM 可能输出物品名而非实体 ID)
+            src = self.resolve_eid(src) or src
+            tgt = self.resolve_eid(tgt) or tgt
+
+            try:
+                if op_type == "connect":
+                    qty = op.get("qty", 0)
+                    self.connect(src, tgt, qty)
+                    results.append({"op": "connect", "src": src, "tgt": tgt, "qty": qty, "status": "ok"})
+
+                elif op_type == "disconnect":
+                    ok = self.disconnect(src, tgt)
+                    results.append({"op": "disconnect", "src": src, "tgt": tgt, "status": "ok" if ok else "not_found"})
+                    if not ok:
+                        status = "partial"
+
+                elif op_type == "set_qty":
+                    qty = op.get("qty", 0)
+                    self.set_edge_quantity(src, tgt, qty)
+                    results.append({"op": "set_qty", "src": src, "tgt": tgt, "qty": qty, "status": "ok"})
+
+                elif op_type == "delta":
+                    delta = op.get("delta", 0)
+                    ok = self.modify_edge_quantity(src, tgt, delta)
+                    results.append({"op": "delta", "src": src, "tgt": tgt, "delta": delta, "status": "ok" if ok else "skipped"})
+                    if not ok:
+                        status = "partial"
+
+                elif op_type == "attr":
+                    target = self.resolve_eid(op.get("target", "")) or op.get("target", "")
+                    attr = op.get("attr", "")
+                    delta = op.get("delta", 0)
+                    if target and attr and delta != 0:
+                        self.modify_entity_attr(target, attr, delta)
+                        results.append({"op": "attr", "target": target, "attr": attr, "delta": delta, "status": "ok"})
+                    else:
+                        results.append({"op": "attr", "status": "skipped", "reason": "缺少 target/attr/delta"})
+
                 else:
-                    etype = "item"
-                name = self._extract_name_from_eid(eid, "")
-                engine.derive_and_register(eid, name, etype)
+                    results.append({"op": op_type, "status": "skipped", "reason": f"未知操作类型: {op_type}"})
+                    status = "partial"
 
-    @staticmethod
-    def _extract_name_from_eid(entity_id: str, fallback: str) -> str:
-        """Extract a readable entity name from an entity_id."""
-        for prefix in ("item_", "obj_", "npc_", "zone_"):
-            if entity_id.startswith(prefix):
-                remaining = entity_id[len(prefix):]
-                if remaining:
-                    return remaining[:20]
-        # If no prefix matched, maybe it's already a human-readable name
-        if fallback:
-            return fallback[:20]
-        return entity_id[:20]
+            except Exception as e:
+                logger.error(f"[Graph] 执行操作失败: {op} → {e}")
+                results.append({"op": op_type, "src": src, "tgt": tgt, "status": "error", "error": str(e)})
+                status = "partial"
 
-    def execute_effects(self, instructions: list[dict]) -> list[str]:
-        """兼容旧接口：批量执行指令列表，每条调用 execute_npc_instruction"""
-        return [self.execute_npc_instruction(instr) for instr in instructions]
+        return {"status": status, "results": results}
+
+    # ═══════════════════════════════════════════
+    # 查询
+    # ═══════════════════════════════════════════
+
+    def get_held_quantity(self, npc_eid: str, item_eid: str) -> int:
+        """获取 NPC 持有某个物品的数量"""
+        edge = self.get_edge(npc_eid, item_eid)
+        return edge.quantity if edge else 0
+
+    def get_inventory_view(self, npc_eid: str) -> list[dict]:
+        """获取 NPC 的库存视图：{item_name, quantity, item_id}"""
+        result = []
+        for e in self.get_outgoing_edges(npc_eid):
+            if e.quantity > 0:
+                item_ent = self.get_entity(e.target_entity_id)
+                name = item_ent.name if item_ent else e.target_entity_id
+                result.append({
+                    "item_name": name,
+                    "quantity": e.quantity,
+                    "item_id": e.target_entity_id,
+                })
+        return result
+
+    def get_subgraph(self, entity_id: str, hops: int = 1) -> dict[str, Any]:
+        """
+        获取实体的 n-hop 子图。
+
+        返回：
+        {
+            "center": {entity块},
+            "entities": {eid: entity块},
+            "edges": [edge行],
+        }
+
+        其中 entity块 = {
+            "entity_id": str,
+            "name": str,
+            "type": str,
+            "role": str,
+            "desc": str,
+            "traits": [...],
+            "attrs": {...},
+        }
+        """
+        visited: set[str] = set()
+        current_ring: set[str] = {entity_id}
+
+        for _ in range(hops):
+            next_ring: set[str] = set()
+            for eid in current_ring:
+                if eid in visited:
+                    continue
+                visited.add(eid)
+                ent = self.get_entity(eid)
+                if ent:
+                    next_ring.update(ent.connected_entity_ids)
+            current_ring = next_ring
+
+        # 包含自身
+        if entity_id not in visited:
+            visited.add(entity_id)
+
+        # 构建返回
+        entities = {}
+        for eid in visited:
+            ent = self.get_entity(eid)
+            if ent:
+                entities[eid] = self._entity_block(ent)
+            else:
+                entities[eid] = {"entity_id": eid, "name": _extract_name_from_eid(eid),
+                                 "type": _infer_type(eid), "role": "", "desc": "",
+                                 "traits": [], "attrs": {}}
+
+        edges = [
+            {"src": e.source_entity_id, "tgt": e.target_entity_id, "qty": e.quantity}
+            for e in self._graph.edges
+            if e.source_entity_id in visited or e.target_entity_id in visited
+        ]
+
+        return {"center": entity_id, "entities": entities, "edges": edges}
+
+    def get_1hop_subgraph_text(self, entity_id: str) -> str:
+        """
+        获取 1-hop 子图的纯文本描述（用于 LLM prompt）。
+        """
+        sub = self.get_subgraph(entity_id, hops=1)
+        parts = ["## 当前拓扑视图"]
+
+        for eid, info in sub["entities"].items():
+            parts.append(f"\n### {info.get('name', eid)} ({info.get('type', '?')})")
+            if info.get("role"):
+                parts.append(f"  角色：{info['role']}")
+            if info.get("desc"):
+                parts.append(f"  描述：{info['desc']}")
+            if info.get("traits"):
+                parts.append(f"  性格：{'、'.join(info['traits'])}")
+            attrs = info.get("attrs", {})
+            if attrs:
+                attr_str = " | ".join(f"{k}={v}" for k, v in attrs.items() if v is not None)
+                if attr_str:
+                    parts.append(f"  属性：{attr_str}")
+
+        # 边视图
+        my_edges = [e for e in sub["edges"] if e["src"] == entity_id or e["tgt"] == entity_id]
+        if my_edges:
+            parts.append(f"\n### 连接")
+            for e in my_edges:
+                from_name = sub["entities"].get(e["src"], {}).get("name", e["src"])
+                to_name = sub["entities"].get(e["tgt"], {}).get("name", e["tgt"])
+                qty = f" x{e['qty']}" if e.get("qty", 0) != 0 else ""
+                parts.append(f"  {from_name} ──▸ {to_name}{qty}")
+
+        return "\n".join(parts)
+
+    def build_zone_subgraph_text(self) -> str:
+        """获取全区域视图文本（用于初始化等）"""
+        parts = ["## 区域世界"]
+
+        for ent in self._entities.values():
+            if ent.entity_type == "zone":
+                # 该区域的 NPC
+                npcs = []
+                for other in self._entities.values():
+                    if other.entity_type == "npc" and other.is_connected_to(ent.entity_id):
+                        npcs.append(other.name)
+                # 该区域的物体
+                objects = []
+                for other in self._entities.values():
+                    if other.entity_type == "object" and other.is_connected_to(ent.entity_id):
+                        objects.append(other.name)
+                # 相连的区域
+                zone_conns = []
+                for conn in ent.connected_entity_ids:
+                    e = self.get_entity(conn)
+                    if e and e.entity_type == "zone":
+                        zone_conns.append(e.name)
+
+                lines = [f"\n### {ent.name}"]
+                if ent.desc:
+                    lines.append(f"  {ent.desc}")
+                if npcs:
+                    lines.append(f"  人物：{' '.join(npcs)}")
+                if objects:
+                    lines.append(f"  物体：{' '.join(objects)}")
+                if zone_conns:
+                    lines.append(f"  连接：{' '.join(zone_conns)}")
+                parts.append("\n".join(lines))
+
+        return "\n".join(parts)
+
+    # ═══════════════════════════════════════════
+    # 辅助
+    # ═══════════════════════════════════════════
+
+    def _entity_block(self, ent: Entity) -> dict:
+        return {
+            "entity_id": ent.entity_id,
+            "name": ent.name,
+            "type": ent.entity_type,
+            "role": ent.role,
+            "desc": ent.desc,
+            "traits": list(ent.traits),
+            "attrs": dict(ent.attributes),
+        }
+
+    def get_graph_for_prompt(self, entity_id: str | None = None) -> str:
+        """构建全局或局部拓扑的 prompt 块"""
+        if entity_id:
+            return self.get_1hop_subgraph_text(entity_id)
+        return self.build_zone_subgraph_text()
+
+    def to_dict(self) -> dict:
+        """序列化快照（用于保存/备份）"""
+        return {
+            "entities": {eid: ent.to_dict() for eid, ent in self._entities.items()},
+            "edges": [
+                {
+                    "src": e.source_entity_id,
+                    "tgt": e.target_entity_id,
+                    "qty": e.quantity,
+                    "active": e.is_active,
+                }
+                for e in self._graph.edges
+            ],
+        }
+
+    def from_dict(self, data: dict):
+        """反序列化加载"""
+        self._entities.clear()
+        self._graph = InteractionGraph()
+        self._edge_by_pair.clear()
+
+        for eid, edata in data.get("entities", {}).items():
+            ent = Entity(
+                entity_id=eid,
+                name=edata.get("name", eid),
+                entity_type=edata.get("entity_type", "npc"),
+            )
+            ent.role = edata.get("role", "")
+            ent.traits = list(edata.get("traits", []))
+            ent.desc = edata.get("desc", "")
+            ent.attributes = dict(edata.get("attributes", {}))
+            ent.connected_entity_ids = set(edata.get("connected_entity_ids", []))
+            self._entities[eid] = ent
+
+        for edata in data.get("edges", []):
+            edge = InteractionEdge(
+                edge_id=f"e_{uuid.uuid4().hex[:12]}",
+                source_entity_id=edata["src"],
+                target_entity_id=edata["tgt"],
+                quantity=edata.get("qty", 0),
+                is_active=edata.get("active", True),
+            )
+            self._graph.add_edge(edge)
+            self._edge_by_pair[(edata["src"], edata["tgt"])] = edge
+
+
+# ─── 辅助函数 ───
+
+def _extract_name_from_eid(eid: str) -> str:
+    """从 entity_id 提取可读名称"""
+    if "_" in eid:
+        parts = eid.split("_", 1)
+        if len(parts) == 2 and parts[1]:
+            return parts[1]
+    return eid
+
+
+def _infer_type(eid: str) -> str:
+    """从 entity_id 推断实体类型字符串（内容层），用于 Entity.__init__"""
+    tid = prefix_to_type_id(eid)
+    if tid:
+        from ..config.node_ontology import TYPE_NAME_TO_ID
+        rev = {v: k for k, v in TYPE_NAME_TO_ID.items()}
+        return rev.get(tid, "")
+    return ""
+

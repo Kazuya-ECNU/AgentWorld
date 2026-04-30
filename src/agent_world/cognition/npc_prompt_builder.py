@@ -1,20 +1,21 @@
 """
-NPC Prompt Builder —— 为每个 NPC 独立构建推理上下文。
+NPC Prompt Builder —— 为每个 NPC 构建推理上下文（LLM #1 输入）。
 
 每个 NPC 的 prompt 包含：
   - 自身属性（体力/饱腹/心情/位置/角色）
   - 最近经历（记忆）
   - 性格标签
   - 库存
-  - 图连接关系（从图中筛选出以该 NPC 为源的边）
-  
-输出：单个 NPC 的完整 prompt 字符串，供 LLM 独立推理该 NPC 下一步行动。
+  - 拓扑子图（1-hop 连接关系）
+  - 同区域 NPC
+
+LLM #1 只读拓扑，不写数据。
+输出自然语言计划，供 LLM #2 解析为拓扑结构变更。
 """
 
 from __future__ import annotations
 
 from typing import Any
-from ..models.interaction import InteractionEdge
 from ..entities.base_entity import Entity
 
 
@@ -24,78 +25,128 @@ def build_one_npc_prompt(
     npc_role: str,
     memories: list[dict],
     personality_tags: list[str],
-    inventory: dict[str, int],
+    inventory: list[dict],
     zone_npcs: list[dict] | None = None,
+    world_time_str: str | None = None,
+    tick_duration_str: str | None = None,
+    recipes: list[dict] | None = None,
+    topology_subgraph: str | None = None,
 ) -> str:
     """
     为一个 NPC 构建完整的推理 prompt。
 
-    LLM #1 只看到：自身信息、标签、记忆、自己有啥、在哪、同区域有谁。
-    不暴露图结构细节（边/物体/配方），那都是 LLM #2 解析层判断的。
-
     Args:
         npc_entity: 图引擎中的 NPC Entity
-        npc_name: NPC 显示名称（如"老张"）
-        npc_role: 角色（如 farmer）
-        memories: 最近记忆列表，每项含 event/timestamp 等
-        personality_tags: 性格标签列表（如 ["勤劳", "务实"]）
-        inventory: 库存 {物品名: 数量}
-        zone_npcs: 同区域的其他 NPC（[{"name": "王老板", "role": "merchant"}]）
+        npc_name: NPC 显示名称
+        npc_role: 角色
+        memories: 最近记忆列表
+        personality_tags: 性格标签列表
+        inventory: 库存 [{item_name, quantity, item_id}]
+        zone_npcs: 同区域的其他 NPC
+        topology_subgraph: 1-hop 拓扑子图的文本描述
 
     Returns:
         格式化的 prompt 字符串
     """
-    # ── 属性部分 ──
-    vitality = npc_entity.get_attr("vitality") or 0
-    satiety = npc_entity.get_attr("satiety") or 0
-    mood = npc_entity.get_attr("mood") or 0
-    zone_id = npc_entity.get_attr("zone_id") or "?"
+    vitality = npc_entity.attributes.get("vitality", 100)
+    satiety = npc_entity.attributes.get("satiety", 50)
+    mood = npc_entity.attributes.get("mood", 50)
+
+    # 找当前区域
+    zone_id = "?"
+    for conn in npc_entity.connected_entity_ids:
+        e = None
+        # 在图引擎外部，无法直接查 Entity
+        # 从 ID 推断
+        if conn.startswith("zone_"):
+            zone_id = conn.replace("zone_", "")
+            break
 
     parts = [
-        f"## NPC: {npc_name}",
-        f"角色: {npc_role}  |  位置: {zone_id}",
-        f"体力: {vitality:.0f}/100  |  饱腹: {satiety:.0f}/100  |  心情: {mood:.0f}/100",
+        "━━━ 基本生存需求 ━━━",
+        "你有3项基本生存属性。任何一项降到0，你都会出局（死亡/崩溃/消失）。",
+        "你的性格决定了你的风险承受能力——",
+        "谨慎的角色会提前行动，粗心的角色可能拖到最后一刻。",
+        "但无论什么性格，掉到0就完了。",
         "",
-        "⚠️  属性警戒值（请根据当前数值自行判断紧急程度）：",
-        "  - 体力 < 30：极度疲劳，必须休息恢复，否则无法继续行动",
-        "  - 饱腹 < 30：极度饥饿，必须进食，降到 0 会饿死",
-        "  - 心情 < 20：心情极差，可能会抑郁，需要社交或娱乐缓解",
+        f"当前: 体力 {vitality:.0f}/100 | 饱腹 {satiety:.0f}/100 | 心情 {mood:.0f}/100",
+        "",
+        "根据你的角色和性格，自己判断：",
+        "  - 你的体力还能撑多久？",
+        "  - 你的饱腹需要什么时候补充？",
+        "  - 你的心情需要什么来调节？",
+        "",
+        "工作、交易、社交——所有目标都在活下去的前提下进行。",
         "",
     ]
+    if world_time_str:
+        parts.append(f"当前时间：{world_time_str}")
+    if tick_duration_str:
+        parts.append(f"本 tick 时长：{tick_duration_str}")
+    parts.append("")
 
-    # ── 性格标签 ──
+    # 自我描述
+    parts.append(f"## NPC: {npc_name}")
+    parts.append(f"角色: {npc_role}  |  位置: {zone_id}")
+    parts.append(f"体力: {vitality:.0f}/100  |  饱腹: {satiety:.0f}/100  |  心情: {mood:.0f}/100")
+    parts.append("")
+
+    # 性格标签
     if personality_tags:
-        tags_str = "、".join(personality_tags)
-        parts.append(f"### 性格标签\n{tags_str}\n")
+        parts.append(f"### 性格标签\n{'、'.join(personality_tags)}\n")
 
-    # ── 最近经历 ──
-    if memories:
+    # 最近信息（LLM #4b 近况投影，类型无关）
+    if npc_entity.recent_info:
+        parts.append("### 最近信息")
+        parts.append("  " + npc_entity.recent_info)
+        parts.append("")
+    elif memories:
+        # 兼容旧版：无 recent_info 时回退到旧记忆系统
         parts.append("### 最近经历")
-        for m in memories[:8]:  # 最多 8 条
-            ts = m.get("timestamp", "")
-            if hasattr(ts, 'strftime'):
+        for entry in memories:
+            ts = entry.get("timestamp", "")
+            if ts and hasattr(ts, 'strftime'):
                 ts = ts.strftime("%H:%M")
-            event = m.get("event", "")
-            loc = m.get("location", "")
-            if loc:
-                parts.append(f"  [{ts}] 在{loc} {event}")
             else:
-                parts.append(f"  [{ts}] {event}")
+                ts = ""
+            event = entry.get("event", "")
+            loc = entry.get("location", "")
+            if loc:
+                parts.append(f"  {ts} 在{loc} {event}" if ts else f"  在{loc} {event}")
+            else:
+                parts.append(f"  {ts} {event}" if ts else f"  {event}")
         parts.append("")
 
-    # ── 库存 ──
+    # 库存
     if inventory:
-        inv_str = "、".join(f"{name}x{qty}" for name, qty in inventory.items() if qty > 0)
+        inv_str = "、".join(f"{i['item_name']}x{i['quantity']}" for i in inventory if i.get("quantity", 0) > 0)
         parts.append(f"### 当前持有\n{inv_str}\n")
     else:
         parts.append("### 当前持有\n空手\n")
 
-    # ── 同区域的其他 NPC ──
+    # 拓扑子图
+    if topology_subgraph:
+        parts.append("### 当前拓扑视图")
+        parts.append(topology_subgraph)
+        parts.append("")
+
+    # 同区域的其他 NPC
     if zone_npcs:
         other_str = "、".join(f"{zn['name']}（{zn['role']}）" for zn in zone_npcs)
         parts.append(f"### 当前区域还有\n{other_str}\n")
 
-    # ── 决策指令 ──
+    # 可用配方
+    if recipes:
+        parts.append("### 可用配方")
+        for r in recipes:
+            inp = " + ".join(f"{k}x{v}" for k, v in r.get("inputs", {}).items())
+            out = " + ".join(f"{k}x{v}" for k, v in r.get("outputs", {}).items())
+            req_obj = r.get("required_object_type", "")
+            req_zone = r.get("zone_id", "")
+            parts.append(f"  - {r['name']}: {inp} → {out}" + (f"  @{req_zone}" if req_zone else "") + (f" 需[{req_obj}]" if req_obj else ""))
+        parts.append("")
+
+    # 决策指令
     parts.append("### 决策")
     parts.append(f"请为 {npc_name} 决定下一步行动。")
     parts.append("用自然语言描述：你想做什么？在哪里做？有什么影响（体力/库存变化）？为什么？")
@@ -114,13 +165,8 @@ def build_one_fallback_prompt(
     npc_role: str,
     zone_id: str,
 ) -> dict:
-    """
-    兜底模式的 NPC 决策（不用 LLM）。
-    返回和 LLM 同样结构的 dict 供 execute_effects 使用。
-    不做硬编码条件判断——统一行为：在当前位置闲逛，轻微消耗体力/饱腹。
-    """
+    """兜底模式的 NPC 决策。"""
     neid = npc_entity.entity_id
-
     return {
         "edge_id": "",
         "action": "闲逛",
@@ -143,3 +189,10 @@ def build_one_fallback_prompt(
         "edge_qty_changes": [],
         "result_text": f"{npc_name}在{zone_id}闲逛",
     }
+
+
+# ═══════════════════════════════════════════
+# 记忆总结——按重要度分层压缩
+# ═══════════════════════════════════════════
+
+

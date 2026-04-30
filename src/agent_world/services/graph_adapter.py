@@ -1,261 +1,183 @@
 """
-适配器 —— 把现有 NPC/WorldObject/Zone 模型包装为 Entity 接口。
+Graph Adapter：将世界配置 → 纯拓扑节点
+
+不再创建任何接口（EntityInterface）。Node 只携带：
+- self description（type/role/attrs/traits/desc）
 """
 
 from __future__ import annotations
+import logging
+import uuid
+from typing import Any
 
 from ..entities.base_entity import Entity
-from ..entities.base import WorldObject
-from ..entities.world_objects import WorldObjectManager
-from ..models.npc import NPC
-from ..models.world import World, Zone
-from ..models.interaction import EntityInterface
 
+logger = logging.getLogger(__name__)
 
-def npc_to_entity(npc: NPC) -> Entity:
-    """把 NPC 模型包装成 Entity（原子动作接口）"""
-    eid = f"npc_{npc.id[:8]}"
-    ent = Entity(eid, npc.name, "npc")
+# ─── NPC → Entity ───
 
-    # 属性
-    ent.set_attr("vitality", getattr(npc, 'vitality', 100),
-                 min_value=0, max_value=100, description="体力/活力值")
-    ent.set_attr("satiety", getattr(npc, 'satiety', 50),
-                 min_value=0, max_value=100, description="饱腹度，0=饿 100=饱")
-    ent.set_attr("mood", getattr(npc, 'mood', 50),
-                 min_value=0, max_value=100, description="心情，0=极差 100=极好")
-    ent.set_attr("zone_id", getattr(npc.position, 'zone_id', 'village_square'),
-                 description="当前所在区域")
-    ent.set_attr("role", npc.role.value if hasattr(npc.role, 'value') else str(getattr(npc, 'role', '')),
-                 description="角色")
+def npc_to_entity(config: Any) -> Entity:
+    if not config or not hasattr(config, "name"):
+        return None
+    eid = _make_eid("npc", config.name)
+    ent = Entity(entity_id=eid, name=config.name, entity_type="npc")
+    ent.role = str(getattr(config, "role", "")) if not isinstance(getattr(config, "role", ""), str) else getattr(config, "role", "")
 
-    # 角色标签
-    for tag in getattr(npc, 'persona_tags', []) or []:
-        t = tag.tag if hasattr(tag, 'tag') else (tag.get('tag', '') if isinstance(tag, dict) else str(tag))
-        if t:
-            ent.set_attr(f"tag_{t}", True, description=f"性格标签: {t}")
+    # 从 DB 模型读取 traits（兼容 persona_tags / personality_tags / traits）
+    raw_traits = (getattr(config, "persona_tags", []) or
+                  getattr(config, "personality_tags", []) or
+                  getattr(config, "traits", []))
+    ent.traits = []
+    for t in raw_traits:
+        if isinstance(t, dict):
+            ent.traits.append(t.get("tag", str(t)))
+        else:
+            ent.traits.append(str(t))
 
-    # 物理属性
-    pa = getattr(npc, 'physical', None)
-    if pa:
-        for field in ['recovery_speed', 'energy_capacity']:
-            val = getattr(pa, field, None)
-            if val is not None:
-                ent.set_attr(field, val)
+    ent.desc = getattr(config, "desc", "")
 
-    # 原子接口（只有 4 种通用动作）
-    ent.add_interface(EntityInterface(
-        interface_id=f"{eid}_move",
-        entity_id=eid,
-        name="移动",
-        description="移动到另一个区域",
-    ))
-    ent.add_interface(EntityInterface(
-        interface_id=f"{eid}_interact",
-        entity_id=eid,
-        name="交互",
-        description="与当前区域的物体或其他人互动",
-    ))
-    ent.add_interface(EntityInterface(
-        interface_id=f"{eid}_hold",
-        entity_id=eid,
-        name="持有",
-        description="持有或携带物品",
-    ))
-    ent.add_interface(EntityInterface(
-        interface_id=f"{eid}_wait",
-        entity_id=eid,
-        name="等待",
-        description="什么都不做，等待",
-    ))
+    # 属性（从 DB 值读取，有则用，无则默认）
+    ent.attributes["vitality"] = float(getattr(config, "vitality", 100.0))
+    ent.attributes["satiety"] = float(getattr(config, "satiety", 100.0))
+    ent.attributes["mood"] = float(getattr(config, "mood", 50.0))
+    ent.attributes["strength"] = float(getattr(config, "strength", 50.0))
+    ent.attributes["consciousness"] = 100.0
+
+    # 读回上 tick 的近况投影（由 _sync_back_to_nodes 写入 attributes._recent_info）
+    raw_ri = getattr(config, "attributes", {}).get("_recent_info", "")
+    if raw_ri:
+        ent.recent_info = raw_ri
 
     return ent
 
 
-def object_to_entity(obj: WorldObject) -> Entity:
-    """把 WorldObject 包装成 Entity（只暴露「可交互」一个接口）"""
-    eid = f"obj_{obj.id[:8]}"
-    ent = Entity(eid, obj.name, "object")
-
-    # 属性
-    ent.set_attr("state", obj.state.value if hasattr(obj.state, 'value') else str(obj.state),
-                 description=f"物体状态: {obj.state}")
-    ent.set_attr("zone_id", obj.zone_id, description="所在区域")
-    ent.set_attr("object_type", obj.object_type.value if hasattr(obj.object_type, 'value') else str(obj.object_type),
-                 description="物体类型")
-    ent.set_attr("description", getattr(obj, 'description', obj.name),
-                 description="物体描述")
-
-    # 接口1：可交互（任何人都可以用它）
-    ent.add_interface(EntityInterface(
-        interface_id=f"{eid}_interactable",
-        entity_id=eid,
-        name="可交互",
-        description="可以被互动（LLM 根据该物体属性推导具体交互内容）",
-    ))
-
-    # 接口2：可持有（谁有 qty>0 就代表控制/拥有此物体）
-    ent.add_interface(EntityInterface(
-        interface_id=f"{eid}_holdable",
-        entity_id=eid,
-        name="可持有",
-        description="NPC 持有此物 qty>0 表示拥有/控制该物体",
-    ))
-
+def item_to_entity(name: str, initial_qty: int = 1) -> Entity:
+    eid = _make_eid("item", name)
+    ent = Entity(entity_id=eid, name=name, entity_type="item")
+    ent.desc = f"这是一个物品，可以持有、使用、交易。"
     return ent
 
 
-def zone_to_entity(zone: Zone) -> Entity:
-    """把 Zone 包装成 Entity（只暴露「可抵达」一个接口）"""
-    eid = f"zone_{zone.id}"
-    ent = Entity(eid, zone.id, "zone")
-
-    ent.set_attr("zone_type", getattr(zone, 'zone_type', zone.id),
-                 description="区域类型")
-    ent.set_attr("weather", getattr(zone, 'weather', '晴朗'),
-                 description="当前天气")
-    for conn in getattr(zone, 'connected_zones', []) or []:
-        ent.set_attr(f"connects_to_{conn}", True, description=f"可通往 {conn}")
-
-    # 唯一接口：可抵达
-    ent.add_interface(EntityInterface(
-        interface_id=f"{eid}_reachable",
-        entity_id=eid,
-        name="可抵达",
-        description=f"可以被移动到 {zone.id} 区域",
-    ))
-
+def zone_to_entity(config: Any) -> Entity:
+    if not config or not hasattr(config, "name"):
+        return None
+    eid = f"zone_{config.name}"
+    ent = Entity(entity_id=eid, name=config.name, entity_type="zone")
+    ent.role = getattr(config, "role", "")
+    ent.desc = getattr(config, "desc", "")
+    ent.attributes["capacity"] = float(getattr(config, "capacity", 100))
+    ent.attributes["is_safe"] = float(getattr(config, "is_safe", True))
     return ent
 
 
-def create_item_entity(item_name: str, total_qty: int,
-                        location_zone: str = "world") -> Entity:
-    """创建物品类型实体（每种物品一个节点，不按实例重复创建）"""
-    eid = f"item_{item_name}"
-    ent = Entity(eid, item_name, "item")
-    ent.set_attr("total_quantity", total_qty, description="总库存量")
-    ent.set_attr("location", location_zone, description="存放区域")
-    ent.set_attr("description", f"{item_name}，世界中有{total_qty}单位",
-                 description="物品描述")
+# ─── 世界图构建（主入口）───
 
-    # 暴露两个接口：可持有（NPC 持有用）、可被消耗（物体消耗用）
-    ent.add_interface(EntityInterface(
-        interface_id=f"{eid}_holdable",
-        entity_id=eid,
-        name="可持有",
-        description="可以被 NPC 持有/携带",
-    ))
-    ent.add_interface(EntityInterface(
-        interface_id=f"{eid}_produce",
-        entity_id=eid,
-        name="可产出",
-        description="可以被生产/收获出来",
-    ))
-
-    return ent
-
-
-def build_world_graph(
-    npcs: list[NPC],
-    objects: list[WorldObject],
-    zones: list[Zone],
-    object_manager: WorldObjectManager,
-) -> list[Entity]:
+def build_world_graph(npcs: list, objects: list, zones: list,
+                      mgr=None) -> dict[str, Entity]:
     """
-    从 NPC / 物体 / 区域 / 物品类型 构建完整的交互图实体集合。
-    返回 Entity 列表，由调用方注册到 GraphEngine。
+    从世界配置构建实体图（纯节点）。
+
+    返回 {entity_id: Entity} 实体字典。
+    边的创建必须通过 GraphEngine，由调用方在注册实体后调用
+    init_graph_edges_from_adapter() 完成。
     """
-    entities: list[Entity] = []
-    eid_map: dict[str, Entity] = {}
+    entities: dict[str, Entity] = {}
 
-    # 1. 创建 NPC 实体
-    for npc in npcs:
-        ent = npc_to_entity(npc)
-        entities.append(ent)
-        eid_map[ent.entity_id] = ent
+    # 1. 创建 NPC
+    for cfg in npcs:
+        ent = npc_to_entity(cfg)
+        if ent:
+            entities[ent.entity_id] = ent
 
-    # 2. 创建物体实体
-    for obj in objects:
-        ent = object_to_entity(obj)
-        entities.append(ent)
-        eid_map[ent.entity_id] = ent
+    # 2. 创建对象（如果有 WorldObjectManager）
+    if mgr:
+        for obj in mgr.all():
+            oid = f"obj_{obj.id[:8]}" if hasattr(obj, 'id') else obj.entity_id
+            if oid not in entities:
+                name = getattr(obj, 'name', oid)
+                ent = Entity(entity_id=oid, name=name, entity_type="object")
+                ent.role = getattr(obj, 'object_type', "")
+                ent.attributes["state"] = "intact"
+                entities[oid] = ent
 
-    # 3. 创建区域实体
-    for zone in zones:
-        ent = zone_to_entity(zone)
-        entities.append(ent)
-        eid_map[ent.entity_id] = ent
+    # 3. 创建区域
+    for cfg in zones:
+        ent = zone_to_entity(cfg)
+        if ent:
+            entities[ent.entity_id] = ent
 
-    # 4. 创建物品类型实体（去重）
-    item_registry: dict[str, int] = {}  # item_name -> total_qty
-    # ... 后续扩展从数据库/配置读取
-    default_items = {
-        "小麦": 200,
-        "金币": 1000,
-        "铁锭": 50,
-        "药水": 30,
-        "蔬菜": 80,
-        "面包": 60,
-        "皮毛": 30,
-        "草药": 60,
-        "纸张": 20,
-        "货物": 50,
-        "武器": 20,
-        "书籍": 40,
-        "酒": 100,
-        "佛经": 10,
-    }
-    for iname, qty in default_items.items():
-        if iname not in item_registry:
-            ent = create_item_entity(iname, qty, "world")
-            entities.append(ent)
-            eid_map[ent.entity_id] = ent
-            item_registry[iname] = qty
-
-    # 5. 建立拓扑连接
-    # NPC ↔ 同区域的物体
-    for npc in npcs:
-        npc_eid = f"npc_{npc.id[:8]}"
-        ent = eid_map.get(npc_eid)
-        if not ent:
-            continue
-        npc_zone = getattr(npc.position, 'zone_id', '')
-
-        for obj in objects:
-            if obj.zone_id == npc_zone:
-                obj_eid = f"obj_{obj.id[:8]}"
-                if obj_eid in eid_map:
-                    ent.connect_to(obj_eid)
-                    eid_map[obj_eid].connect_to(npc_eid)
-
-        # Zone 连接
-        for zone in zones:
-            if zone.id == npc_zone:
-                zone_eid = f"zone_{zone.id}"
-                if zone_eid in eid_map:
-                    ent.connect_to(zone_eid)
-
-    # 物体 ↔ Zone
-    for obj in objects:
-        obj_eid = f"obj_{obj.id[:8]}"
-        obj_ent = eid_map.get(obj_eid)
-        if not obj_ent:
-            continue
-        for zone in zones:
-            if zone.id == obj.zone_id:
-                zone_eid = f"zone_{zone.id}"
-                if zone_eid in eid_map:
-                    obj_ent.connect_to(zone_eid)
-
-    # Zone ↔ Zone（通过 connected_zones）
-    for zone in zones:
-        zone_eid = f"zone_{zone.id}"
-        z_ent = eid_map.get(zone_eid)
-        if not z_ent:
-            continue
-        for conn in getattr(zone, 'connected_zones', []) or []:
-            conn_eid = f"zone_{conn}"
-            if conn_eid in eid_map:
-                z_ent.connect_to(conn_eid)
-
+    logger.info(f"[Adapter] 构建完毕: {len(entities)} 个实体")
     return entities
+
+
+def init_graph_edges_from_adapter(ge, npcs: list, zones: list):
+    """
+    在 GraphEngine 上创建所有初始边。
+
+    参数：
+        ge: GraphEngine 实例（已注册所有实体）
+        npcs: NPC 配置列表
+        zones: 区域配置列表
+    """
+    for cfg in npcs:
+        npc_eid = _make_eid("npc", cfg.name)
+
+        # NPC → 区域（位置）
+        zone_name = _get_zone_for(cfg)
+        if zone_name:
+            zone_eid = f"zone_{zone_name}"
+            if ge.get_entity(zone_eid):
+                ge.connect(npc_eid, zone_eid, -1)
+
+        # NPC → 物品（初始库存）
+        raw_inv = _normalize_inventory(cfg)
+        for item_name, qty in raw_inv.items():
+            item_eid = _make_eid("item", item_name)
+            if not ge.get_entity(item_eid):
+                ge.register_entity(item_to_entity(item_name, qty))
+            ge.connect(npc_eid, item_eid, qty)
+
+    # 区域双向连接
+    for cfg in zones:
+        zone_eid = f"zone_{cfg.name}"
+        connects = getattr(cfg, "connects_to", []) or getattr(cfg, "connected_zones", [])
+        for neighbor_name in connects:
+            neighbor_eid = f"zone_{neighbor_name}"
+            if ge.get_entity(zone_eid) and ge.get_entity(neighbor_eid):
+                if not ge.get_edge(zone_eid, neighbor_eid):
+                    ge.connect(zone_eid, neighbor_eid, 0)
+                    ge.connect(neighbor_eid, zone_eid, 0)
+
+    logger.info(f"[Adapter] 初始边创建完毕 ({len(npcs)} NPC, {len(zones)} 区域)")
+
+
+# ─── 辅助 ───
+
+def _make_eid(prefix: str, name: str) -> str:
+    """生成唯一实体 ID"""
+    safe_name = name.replace(" ", "_").replace("　", "_")
+    import hashlib
+    h = hashlib.md5(safe_name.encode()).hexdigest()[:8]
+    return f"{prefix}_{h}"
+
+
+def _get_zone_for(cfg) -> str:
+    """从各种可能的字段名中提取 zone id"""
+    pos = getattr(cfg, "position", None)
+    if pos and isinstance(pos, dict):
+        return pos.get("zone_id", "")
+    if pos and hasattr(pos, "zone_id"):
+        return pos.zone_id
+    return getattr(cfg, "zone", "")
+
+
+def _normalize_inventory(cfg) -> dict[str, int]:
+    """兼容 list[str] 和 dict[str,int] 两种库存格式"""
+    raw = getattr(cfg, "inventory", []) or getattr(cfg, "items", [])
+    if isinstance(raw, dict):
+        return raw
+    inv = {}
+    for item in raw:
+        name = item.name if hasattr(item, 'name') else str(item)
+        inv[name] = inv.get(name, 0) + 1
+    return inv

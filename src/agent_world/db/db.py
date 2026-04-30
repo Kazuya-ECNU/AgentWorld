@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Generator
 
-from ..models.npc import NPC, NPCRole, NPCStatus, Position, MemoryEntry
+from ..models.npc import NPC, NPCRole, NPCStatus, Position
 from ..models.world import World, Zone, WorldTime, ZoneType, DEFAULT_ZONES
 
 

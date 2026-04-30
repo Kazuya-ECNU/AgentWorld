@@ -366,6 +366,52 @@ class ForestHuntingGround(WorldObject):
         return InteractionResult(success=True, description=f"狩猎获得 {random.choice(['兽皮','野兔','野鸡肉','蘑菇'])}", loot=[])
 
 
+# === 通用 Object（统一世界物件与配方工具） ===
+
+class Object(WorldObject):
+    """
+    物体节点（通用，统一世界物件与配方工具）。
+
+    所有 entity_type="object" 的图节点统一由此类创建。
+    无独立状态机，用 max_concurrency 限制同时使用人数。
+    """
+
+    def __init__(self, zone_id: str, name: str, object_type: ObjectType,
+                 max_concurrency: int = 1, **kwargs):
+        super().__init__(
+            object_id=kwargs.pop('object_id', None),
+            object_type=object_type,
+            zone_id=zone_id,
+            name=name,
+            **kwargs
+        )
+        self._max_concurrency = max_concurrency
+        self._current_users: set[str] = set()
+
+    def get_affordances(self) -> list[Affordance]:
+        if len(self._current_users) < self._max_concurrency:
+            return [Affordance(action="use", description=f"使用{self.name}", energy_cost=5, duration_ticks=1)]
+        return []
+
+    def can_interact(self, npc_id: str, action: str) -> tuple[bool, str]:
+        if len(self._current_users) >= self._max_concurrency and npc_id not in self._current_users:
+            return False, f"{self.name}当前已被占满"
+        return True, ""
+
+    def interact(self, npc_id: str, action: str) -> InteractionResult:
+        self._current_users.add(npc_id)
+        return InteractionResult(
+            success=True,
+            description=f"使用{self.name}",
+            loot=[],
+            state_change=None,
+            next_available_at=None,
+        )
+
+    def release_user(self, npc_id: str):
+        self._current_users.discard(npc_id)
+
+
 # === 实体管理器 ===
 
 class WorldObjectManager:
@@ -569,9 +615,22 @@ class WorldObjectManager:
                     elif obj_type == ObjectType.FOREST_HUNTING_GROUND:
                         obj = ForestHuntingGround(zone_id=zone_id, name=name)
                     else:
-                        # 跳过未知类型
                         continue
                     self.add(obj)
+
+        # 创建配方工具物体（统一为 object，走 WorldObject 基类路径）
+        tool_defs = [
+            ("铁砧", "market", ObjectType.ANVIL),
+            ("烤炉", "farm", ObjectType.OVEN),
+            ("磨具", "farm", ObjectType.MILL),
+            ("酿酒桶", "tavern", ObjectType.BREWING_VAT),
+            ("药臼", "temple", ObjectType.MORTAR),
+            ("缝纫台", "forest", ObjectType.SEWING_TABLE),
+            ("工作台", "market", ObjectType.WORKBENCH),
+        ]
+        for tool_name, tool_zone, obj_type in tool_defs:
+            obj = Object(zone_id=tool_zone, name=tool_name, object_type=obj_type)
+            self.add(obj)
 
     def to_dict(self) -> list[dict]:
         return [o.to_dict() for o in self._objects.values()]

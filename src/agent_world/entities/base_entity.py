@@ -1,105 +1,135 @@
 """
-实体基类 —— 所有可交互实体（NPC/物品/zone）继承此类。
-每个实体拥有一组属性 + 一组公开接口。
+基础实体 —— 节点（无接口，只有属性、连接、自我描述）
+
+Entity 是图中的一个节点，携带：
+- 拓扑身份：type_id（数字，引擎只读这个）
+- 自我描述：type/role/attrs/traits/desc（内容层，LLM 消费）
+- 连接的节点列表
+- 属性字典
+
+设计原则：
+  拓扑引擎对语义完全透明，所有遍历行为由 node_ontology 配置驱动。
+  节点自我描述，边只提供结构（谁连谁 + 数量）。
 """
 
 from __future__ import annotations
+import logging
 from typing import Any
-from ..models.interaction import EntityAttribute, EntityInterface
 
+from agent_world.config.node_ontology import (
+    type_name_to_id,
+    is_terminal,
+    get_ontology,
+)
+
+logger = logging.getLogger(__name__)
+
+
+# ─── 自描述节点 ───
 
 class Entity:
     """
-    实体基类。
-    实体 = 属性集合 + 接口集合 + 拓扑连接信息。
+    世界中的一个自描述节点。
+
+    节点自己携带完整的语义描述（角色、属性、性格、记忆）。
+    LLM 从节点的信息推断边的语义。
+
+    拓扑与内容解耦：
+      - type_id（数字）：拓扑引擎用于 BFS 遍历
+      - entity_type（字符串）：内容层，向 LLM 描述类型
+      - name（字符串）：内容层，LLM 可读名称
     """
 
-    def __init__(self, entity_id: str, name: str, entity_type: str = "generic"):
+    def __init__(self, entity_id: str, name: str, entity_type: str = "npc"):
         self.entity_id = entity_id
         self.name = name
-        self.entity_type = entity_type    # "npc" / "object" / "zone"
-        self.attributes: dict[str, EntityAttribute] = {}
-        self.interfaces: dict[str, EntityInterface] = {}
-        self.connected_entity_ids: set[str] = set()   # 拓扑连接的其他实体
+        self.entity_type = entity_type  # npc / zone / item / object — 内容层，LLM 用
 
-    # ─── 属性管理 ───
+        # 拓扑身份：数字 type_id，引擎唯一读这个
+        self.type_id: int = type_name_to_id(entity_type)
 
-    def set_attr(self, name: str, value: Any, **kwargs):
-        if name in self.attributes:
-            self.attributes[name].value = value
-        else:
-            self.attributes[name] = EntityAttribute(
-                name=name, value=value, **kwargs
-            )
+        self.attributes: dict[str, Any] = {}  # 基础属性（vitality, satiety, mood...）
+        self.connected_entity_ids: set[str] = set()  # 连接的节点 ID 集合
+        self.recent_info: str = ""  # 近况投影（LLM #4b 写入，类型无关）
 
-    def get_attr(self, name: str) -> Any:
-        attr = self.attributes.get(name)
-        return attr.value if attr else None
+        # 半结构化自我描述
+        self.role: str = ""       # 角色（用于 NPC/Entity）
+        self.traits: list[str] = []  # 性格特质列表
+        self.desc: str = ""       # 自由格式描述
 
-    def modify_attr(self, name: str, delta: float) -> float:
-        """数值型属性增减，返回实际增加值"""
-        attr = self.attributes.get(name)
-        if attr is None or not isinstance(attr.value, (int, float)):
-            return 0.0
-        new_val = attr.value + delta
-        if attr.min_value is not None:
-            new_val = max(attr.min_value, new_val)
-        if attr.max_value is not None:
-            new_val = min(attr.max_value, new_val)
-        actual = new_val - attr.value
-        attr.value = new_val
-        return actual
+    @property
+    def is_leaf(self) -> bool:
+        """拓扑叶子节点标志：BFS 到此停止。由 node_ontology 配置决定。"""
+        return is_terminal(self.type_id)
 
-    def attrs_to_prompt(self) -> str:
-        """格式化当前属性供 LLM 使用"""
-        lines = [f"  {self.name} ({self.entity_type}) 属性："]
-        for a in self.attributes.values():
-            lines.append(f"    {a.name} = {a.value}  ({a.description})")
-        return "\n".join(lines)
+    @property
+    def no_same_type(self) -> bool:
+        """同类型阻断标志：BFS 不跨同类型节点。由 node_ontology 配置决定。"""
+        onto = get_ontology(self.type_id)
+        return bool(onto.get("same_type_block", False))
 
-    # ─── 接口管理 ───
+    def connect_to(self, entity_id: str):
+        """添加有向连接"""
+        self.connected_entity_ids.add(entity_id)
 
-    def add_interface(self, iface: EntityInterface):
-        self.interfaces[iface.interface_id] = iface
+    def disconnect_from(self, entity_id: str):
+        """移除有向连接"""
+        self.connected_entity_ids.discard(entity_id)
 
-    def get_interface(self, iface_id: str) -> EntityInterface | None:
-        return self.interfaces.get(iface_id)
+    def is_connected_to(self, entity_id: str) -> bool:
+        return entity_id in self.connected_entity_ids
 
-    def interfaces_to_prompt(self) -> str:
-        lines = [f"  {self.name} 公开接口："]
-        for iface in self.interfaces.values():
-            lines.append(iface.to_prompt_block())
-        return "\n".join(lines)
+    def get_subgraph(self) -> set[str]:
+        """获取 1-hop 邻居集合（包括自己）"""
+        result = {self.entity_id}
+        result.update(self.connected_entity_ids)
+        return result
 
-    # ─── 拓扑连接 ───
-
-    def connect_to(self, other_entity_id: str):
-        self.connected_entity_ids.add(other_entity_id)
-
-    def disconnect_from(self, other_entity_id: str):
-        self.connected_entity_ids.discard(other_entity_id)
-
-    # ─── 序列化 ───
+    # ─── 自我描述（供 LLM 使用） ───
 
     def to_prompt_block(self) -> str:
-        """本 tick 给 LLM 看的完整实体信息"""
-        parts = [
-            f"【{self.name}】（{self.entity_type}）",
-        ]
-        # 属性
-        for a in self.attributes.values():
-            parts.append(f"  {a.name}: {a.value}")
-        # 接口
-        for iface in self.interfaces.values():
-            parts.append(f"  └─接口[{iface.interface_id}]: {iface.name} — {iface.description}")
-        return "\n".join(parts)
+        """
+        生成 LLM 可读的自我描述块。
 
-    def dump(self) -> dict:
+        格式：
+          {name}（{type}） | 角色:{role}
+          描述：{desc}
+          属性：{vitality}/100, {satiety}/100...
+          性格：{traits}
+          持有物品：{items}
+        """
+        lines = [f"{self.name}（{self.entity_type}）"]
+
+        if self.role:
+            lines.append(f"  角色：{self.role}")
+
+        if self.desc:
+            lines.append(f"  描述：{self.desc}")
+
+        if self.traits:
+            lines.append(f"  性格：{'、'.join(self.traits)}")
+
+        # 属性摘要
+        attr_parts = []
+        for key, val in self.attributes.items():
+            if val is not None:
+                attr_parts.append(f"{key}={val}")
+        if attr_parts:
+            lines.append(f"  属性：{' '.join(attr_parts)}")
+
+        return "\n".join(lines)
+
+    def to_dict(self) -> dict:
         return {
             "entity_id": self.entity_id,
             "name": self.name,
-            "type": self.entity_type,
-            "attributes": {k: v.to_dict() for k, v in self.attributes.items()},
-            "interfaces": list(self.interfaces.keys()),
-            "connected_to": list(self.connected_entity_ids),
+            "entity_type": self.entity_type,
+            "role": self.role,
+            "traits": list(self.traits),
+            "desc": self.desc,
+            "attributes": dict(self.attributes),
+            "connected_entity_ids": sorted(self.connected_entity_ids),
         }
+
+    def __repr__(self) -> str:
+        return f"Entity({self.entity_id}, {self.name}, {self.entity_type})"

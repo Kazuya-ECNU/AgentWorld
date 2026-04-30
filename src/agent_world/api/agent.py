@@ -340,9 +340,9 @@ async def act(req: ActRequest, x_api_key: str = Header(...)):
             
             # 简单的 NPC 对话响应
             dialogue = f"你好，我是 {npc.name}，是个 {npc.role.value}。"
-            if npc.memory:
-                recent = npc.memory[-1]
-                dialogue += f" 最近我在: {recent.event}"
+            recent_info = npc.attributes.get("_recent_info", "")
+            if recent_info:
+                dialogue += f" 最近: {recent_info}"
             
             # 记录对话到 agent 记忆
             agent["memory"].append({

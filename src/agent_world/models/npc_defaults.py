@@ -2,14 +2,12 @@
 NPC 默认数据 — 16 个 NPC 构成一个小型社会模拟
 """
 
-from .npc import NPC, NPCRole, NPCStatus, Position, MemoryEntry, PhysicalAttributes, PersonaTags
+from .npc import NPC, NPCRole, NPCStatus, Position, PhysicalAttributes, PersonaTags
 from datetime import datetime, timedelta
-
 
 def make_farmer(name: str, seed: int = 0) -> NPC:
     """农民 NPC"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.4 + seed * 0.08),
         energy_capacity=120.0,
         health=95.0,
         recovery_speed=0.8,
@@ -22,25 +20,20 @@ def make_farmer(name: str, seed: int = 0) -> NPC:
         interests=["农作物", "牧畜"],
         personality=["内向", "耐心"],
     )
-    memories = [
-        MemoryEntry(event="家族世代务农，继承了祖上的土地", timestamp=datetime.now() - timedelta(days=300), importance=0.9),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"家族世代务农，继承了祖上的土地。"},
         name=name,
         role=NPCRole.FARMER,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="farm"),
         vitality=100.0,
         inventory=["小麦"] * 15 + ["金币"] * 5,
     )
 
-
 def make_farmer2(name: str, seed: int = 0):
     """农民（女）NPC"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.5 + seed * 0.08),
         energy_capacity=100.0,
         health=90.0,
         recovery_speed=0.7,
@@ -53,25 +46,20 @@ def make_farmer2(name: str, seed: int = 0):
         interests=["蔬菜", "家禽", "孩子"],
         personality=["温和", "热情"],
     )
-    memories = [
-        MemoryEntry(event="嫁到本村后和丈夫一起务农，还养了些鸡鸭", timestamp=datetime.now() - timedelta(days=200), importance=0.8),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"嫁到本村后和丈夫一起务农，还养了些鸡鸭。"},
         name=name,
         role=NPCRole.FARMER,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="farm"),
         vitality=100.0,
         inventory=["蔬菜"] * 10 + ["金币"] * 3,
     )
 
-
 def make_merchant(name: str, seed: int = 0) -> NPC:
     """商人 NPC"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.6 + seed * 0.08),
         energy_capacity=100.0,
         health=90.0,
         recovery_speed=1.0,
@@ -84,25 +72,20 @@ def make_merchant(name: str, seed: int = 0) -> NPC:
         interests=["金币", "货物"],
         personality=["谨慎", "外向"],
     )
-    memories = [
-        MemoryEntry(event="在市场摆摊多年，积累了丰富的商业经验", timestamp=datetime.now() - timedelta(days=100), importance=0.9),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"在市场摆摊多年，积累了丰富的商业经验。"},
         name=name,
         role=NPCRole.MERCHANT,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="market"),
         vitality=100.0,
         inventory=["金币"] * 10 + ["货物"] * 5,
     )
 
-
 def make_market_owner(name: str, seed: int = 0):
     """市场女摊主 NPC"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.5 + seed * 0.08),
         energy_capacity=90.0,
         health=85.0,
         recovery_speed=0.9,
@@ -115,25 +98,20 @@ def make_market_owner(name: str, seed: int = 0):
         interests=["面包", "顾客"],
         personality=["热情", "爱聊天"],
     )
-    memories = [
-        MemoryEntry(event="在市场摆面包摊二十年，老街坊都认识她", timestamp=datetime.now() - timedelta(days=400), importance=0.9),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"在市场摆面包摊二十年，老街坊都认识她。"},
         name=name,
         role=NPCRole.MERCHANT,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="market"),
         vitality=100.0,
         inventory=["面包"] * 15 + ["金币"] * 8,
     )
 
-
 def make_artisan(name: str, seed: int = 0):
     """工匠 NPC"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.4 + seed * 0.08),
         energy_capacity=130.0,
         health=95.0,
         recovery_speed=0.9,
@@ -146,25 +124,20 @@ def make_artisan(name: str, seed: int = 0):
         interests=["打铁", "锻造", "工具"],
         personality=["沉默", "专注"],
     )
-    memories = [
-        MemoryEntry(event="祖传铁匠，手艺全村一流", timestamp=datetime.now() - timedelta(days=500), importance=0.9),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"祖传铁匠，手艺全村一流。"},
         name=name,
         role=NPCRole.ARTISAN,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="market"),
         vitality=100.0,
         inventory=["铁锭"] * 15 + ["金币"] * 10,
     )
 
-
 def make_guard(name: str, seed: int = 0) -> NPC:
     """守卫 NPC"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.5 + seed * 0.08),
         energy_capacity=130.0,
         health=100.0,
         recovery_speed=1.2,
@@ -178,25 +151,20 @@ def make_guard(name: str, seed: int = 0) -> NPC:
         personality=["外向", "警觉"],
         special_traits=["退役老兵"] if seed > 0 else [],
     )
-    memories = [
-        MemoryEntry(event="曾在王国军队服役，后转任城市守卫", timestamp=datetime.now() - timedelta(days=200), importance=0.9),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"曾在王国军队服役，后转任城市守卫。"},
         name=name,
         role=NPCRole.GUARD,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="barracks"),
         vitality=100.0,
         inventory=["铁锭"] * 5 + ["金币"] * 8,
     )
 
-
 def make_guard_leader(name: str, seed: int = 0):
     """卫兵队长 NPC"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.6 + seed * 0.08),
         energy_capacity=140.0,
         health=100.0,
         recovery_speed=1.0,
@@ -210,25 +178,20 @@ def make_guard_leader(name: str, seed: int = 0):
         personality=["严厉", "公正"],
         special_traits=["老兵"],
     )
-    memories = [
-        MemoryEntry(event="曾率队击退山贼，保卫了村庄", timestamp=datetime.now() - timedelta(days=300), importance=0.9),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"曾率队击退山贼，保卫了村庄。"},
         name=name,
         role=NPCRole.GUARD,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="barracks"),
         vitality=100.0,
         inventory=["武器"] * 5 + ["金币"] * 20,
     )
 
-
 def make_scholar(name: str, seed: int = 0) -> NPC:
     """学者 NPC"""
     physical = PhysicalAttributes(
-        memory_rate=max(0.1, 0.9 - seed * 0.08),
         energy_capacity=80.0,
         health=80.0,
         recovery_speed=0.7,
@@ -242,25 +205,20 @@ def make_scholar(name: str, seed: int = 0) -> NPC:
         personality=["内向", "好奇"],
         special_traits=["夜猫子"],
     )
-    memories = [
-        MemoryEntry(event="在王国图书馆任职多年，研究古代历史", timestamp=datetime.now() - timedelta(days=500), importance=0.9),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"在王国图书馆任职多年，研究古代历史。"},
         name=name,
         role=NPCRole.SCHOLAR,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="library"),
         vitality=100.0,
         inventory=["书籍"] * 5 + ["金币"] * 15,
     )
 
-
 def make_librarian(name: str, seed: int = 0):
     """图书管理员 NPC（女）"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.8 + seed * 0.05),
         energy_capacity=75.0,
         health=85.0,
         recovery_speed=0.6,
@@ -273,25 +231,20 @@ def make_librarian(name: str, seed: int = 0):
         interests=["藏书", "整理", "园艺"],
         personality=["安静", "细致"],
     )
-    memories = [
-        MemoryEntry(event="把图书馆管理得井井有条，知道每本书的位置", timestamp=datetime.now() - timedelta(days=250), importance=0.8),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"把图书馆管理得井井有条，知道每本书的位置。"},
         name=name,
         role=NPCRole.SCHOLAR,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="library"),
         vitality=100.0,
         inventory=["书籍"] * 8 + ["金币"] * 5,
     )
 
-
 def make_healer(name: str, seed: int = 0) -> NPC:
     """治疗师 NPC"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.7 + seed * 0.05),
         energy_capacity=85.0,
         health=85.0,
         recovery_speed=1.3,
@@ -305,25 +258,20 @@ def make_healer(name: str, seed: int = 0) -> NPC:
         personality=["内向", "温和"],
         special_traits=["药师"] if seed > 0 else [],
     )
-    memories = [
-        MemoryEntry(event="在神庙学习医术多年，治愈了无数病患", timestamp=datetime.now() - timedelta(days=600), importance=0.9),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"在神庙学习医术多年，治愈了无数病患。"},
         name=name,
         role=NPCRole.HEALER,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="temple"),
         vitality=100.0,
         inventory=["药水"] * 8 + ["金币"] * 12,
     )
 
-
 def make_monk(name: str, seed: int = 0):
     """僧人 NPC"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.6 + seed * 0.08),
         energy_capacity=90.0,
         health=95.0,
         recovery_speed=1.5,
@@ -337,25 +285,20 @@ def make_monk(name: str, seed: int = 0):
         personality=["平和", "寡言"],
         special_traits=["素食"],
     )
-    memories = [
-        MemoryEntry(event="在村中寺庙修行三十年，深得村民敬重", timestamp=datetime.now() - timedelta(days=1000), importance=0.9),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"在村中寺庙修行三十年，深得村民敬重。"},
         name=name,
         role=NPCRole.HEALER,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="temple"),
         vitality=100.0,
         inventory=["佛经"] * 3 + ["金币"] * 5,
     )
 
-
 def make_herbalist(name: str, seed: int = 0):
     """采药女 NPC"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.5 + seed * 0.08),
         energy_capacity=110.0,
         health=90.0,
         recovery_speed=1.0,
@@ -368,25 +311,20 @@ def make_herbalist(name: str, seed: int = 0):
         interests=["草药", "山林", "动物"],
         personality=["活泼", "勇敢"],
     )
-    memories = [
-        MemoryEntry(event="从小在山里长大，认识上百种草药", timestamp=datetime.now() - timedelta(days=200), importance=0.8),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"从小在山里长大，认识上百种草药。"},
         name=name,
         role=NPCRole.HEALER,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="forest"),
         vitality=100.0,
         inventory=["草药"] * 12 + ["金币"] * 2,
     )
 
-
 def make_hunter(name: str, seed: int = 0):
     """猎人 NPC"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.4 + seed * 0.08),
         energy_capacity=120.0,
         health=100.0,
         recovery_speed=1.2,
@@ -399,25 +337,20 @@ def make_hunter(name: str, seed: int = 0):
         interests=["打猎", "山林", "皮货"],
         personality=["独立", "警觉"],
     )
-    memories = [
-        MemoryEntry(event="在森林里打猎十余年，熟知每一片区域", timestamp=datetime.now() - timedelta(days=400), importance=0.9),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"在森林里打猎十余年，熟知每一片区域。"},
         name=name,
         role=NPCRole.WANDERER,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="forest"),
         vitality=100.0,
         inventory=["皮毛"] * 5 + ["金币"] * 3,
     )
 
-
 def make_tavern_owner(name: str, seed: int = 0):
     """酒馆老板 NPC"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.6 + seed * 0.08),
         energy_capacity=100.0,
         health=95.0,
         recovery_speed=1.0,
@@ -430,25 +363,20 @@ def make_tavern_owner(name: str, seed: int = 0):
         interests=["酿酒", "待客", "听八卦"],
         personality=["热情", "好客"],
     )
-    memories = [
-        MemoryEntry(event="经营这家酒馆二十年，认识全村所有人", timestamp=datetime.now() - timedelta(days=500), importance=0.9),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"经营这家酒馆二十年，认识全村所有人。"},
         name=name,
         role=NPCRole.MERCHANT,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="tavern"),
         vitality=100.0,
         inventory=["酒"] * 20 + ["金币"] * 30,
     )
 
-
 def make_tavern_helper(name: str, seed: int = 0):
     """酒馆服务员 NPC（老陈女儿）"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.6 + seed * 0.08),
         energy_capacity=110.0,
         health=90.0,
         recovery_speed=1.3,
@@ -461,25 +389,20 @@ def make_tavern_helper(name: str, seed: int = 0):
         interests=["唱歌", "八卦", "帮忙"],
         personality=["开朗", "乖巧"],
     )
-    memories = [
-        MemoryEntry(event="从小在酒馆帮忙，熟悉每一位客人", timestamp=datetime.now() - timedelta(days=100), importance=0.7),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"从小在酒馆帮忙，熟悉每一位客人。"},
         name=name,
         role=NPCRole.WANDERER,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="tavern"),
         vitality=100.0,
         inventory=["金币"] * 5,
     )
 
-
 def make_messenger(name: str, seed: int = 0):
     """杂役少年 NPC（满村跑）"""
     physical = PhysicalAttributes(
-        memory_rate=min(1.0, 0.3 + seed * 0.08),
         energy_capacity=150.0,
         health=100.0,
         recovery_speed=2.0,
@@ -493,20 +416,16 @@ def make_messenger(name: str, seed: int = 0):
         personality=["活泼", "好奇"],
         special_traits=["话多"],
     )
-    memories = [
-        MemoryEntry(event="帮村里人跑腿送信挣几个铜板", timestamp=datetime.now() - timedelta(days=30), importance=0.6),
-    ]
     return NPC(
+        attributes={"strength":10,"intelligence":10,"charisma":10,"endurance":10,"wisdom":10,"_recent_info":"帮村里人跑腿送信挣几个铜板。"},
         name=name,
         role=NPCRole.WANDERER,
         physical=physical,
         persona_tags=persona,
-        memory=memories,
         position=Position(zone_id="village_square"),
         vitality=100.0,
         inventory=["纸张"] * 5 + ["金币"] * 1,
     )
-
 
 # 所有 16 个 NPC 的完整配置
 DEFAULT_NPCS = [
@@ -535,7 +454,6 @@ DEFAULT_NPCS = [
     # 无固定场所 (1)
     ("小虎子", NPCRole.WANDERER, make_messenger, 0),
 ]
-
 
 def create_diverse_npcs() -> list[NPC]:
     """创建 16 个 NPC"""

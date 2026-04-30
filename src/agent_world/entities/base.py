@@ -35,6 +35,15 @@ class ObjectType(str, Enum):
     BARRACKS_EQUIPMENT = "barracks_equipment"  # 兵营训练设施
     FOREST_HUNTING_GROUND = "forest_hunting_ground"  # 森林狩猎场
 
+    # 配方工具（统一为 object，用 max_concurrency 替代状态机）
+    ANVIL = "铁砧"            # 锻造铁砧
+    OVEN = "烤炉"              # 烤炉
+    MILL = "磨具"              # 磨具
+    BREWING_VAT = "酿酒桶"      # 酿酒桶
+    MORTAR = "药臼"            # 药臼
+    SEWING_TABLE = "缝纫台"     # 缝纫台
+    WORKBENCH = "工作台"        # 工作台
+
 
 # === 交互结果 ===
 

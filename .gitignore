@@ -19,6 +19,10 @@ data/tick_state.json
 /trace_tick*
 /report_*
 
+# Trace output (generated, not versioned)
+traces_oneshot/
+traces_30tick/trace_tick*.json
+
 # IDE & OS
 .idea/
 .vscode/

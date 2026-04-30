@@ -14,7 +14,6 @@ Files:
 
 from .persona import PersonaTags
 from .memory import MemoryStore, MemoryEntry
-from .memory_manager import MemoryManager
 from .context import ContextBuilder
 from .reasoner import GoalReasoner, GoalOutput
 from .common_knowledge import COMMON_KNOWLEDGE, WORK_SCHEDULE, ROLE_BEHAVIORS, WORLD_PHYSICS, GOAL_TYPES
@@ -24,7 +23,6 @@ __all__ = [
     "PersonaTags",
     "MemoryStore",
     "MemoryEntry",
-    "MemoryManager",
     "ContextBuilder",
     "GoalReasoner",
     "GoalOutput",

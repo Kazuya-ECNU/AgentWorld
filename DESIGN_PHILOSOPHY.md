@@ -284,3 +284,160 @@ references market prices.
   2. Chain? None found
   3. → Register "item_绸缎" as new basic entity
 ```
+
+---
+
+# Topology–Content Decoupling Axiom
+
+## Principle
+
+The engine must not contain any code that branches on semantic entity types.
+
+```python
+# ❌ Forbidden pattern — engine knows about "NPC" and "zone":
+if entity_type == "zone": ...
+if e.edge_type == "npc_npc": ...
+
+# ✅ Allowed — engine consults a declarative config by type_id:
+if NODE_ONTOLOGY[ent.type_id].get("terminal"): ...
+```
+
+**Topology layer** (traversal, grouping, connectivity) does not know the
+semantic meaning of any node type. It only reads numeric type IDs and a
+configuration table that describes how each type behaves.
+
+**Content layer** (names, attributes, memories, descriptions) carries all
+semantic information and is consumed exclusively by LLMs and prompts.
+
+The boundary is absolute: no `if entity_type == "npc"` anywhere in the
+engine. Any domain-specific behavior must be declared as configuration,
+not coded as branching logic.
+
+## Why This Exists
+
+The original architecture had typed edges (interface-based), semantic
+string comparisons, and hardcoded social rules. Every new feature —
+zones, items, objects, NPC interactions — required adding new `if type ==`
+branches in traversal code, prompt builders, and validators.
+
+This violated the separation between "how the graph works" and "what
+the graph means." The solution was to push all semantic knowledge into
+the content layer (node self-description) and the configuration layer
+(traversal rules), leaving the engine semantically blind.
+
+## The Metaphor: CPU vs. Operating System
+
+| Role | Component | Knows |
+|------|-----------|-------|
+| CPU (execution) | GraphEngine / BFS / Validator | Identifies by number only |
+| OS (configuration) | config/node_ontology.py | Maps numbers to behavior |
+| Application (content) | Entity attributes / LLM prompts | All semantic meaning |
+
+Just as a CPU doesn't know whether a register holds an integer, a pointer,
+or a string — it only executes instructions — the topology engine doesn't
+know whether type_id 3 represents a zone, a region, or a planet. It only
+knows: "type_id 3 has same_type_block = true → stop when encountering
+another type_id 3."
+
+## Node Identity
+
+```
+identity = type_id (numeric) + instance_id (unique)
+  → t1_a7b3c2d1  (type 1, instance a7b3c2d1)
+  → t3_market    (type 3, instance "market")
+```
+
+- `type_id` is a pure number with no string label in engine scope.
+- `instance_id` is a unique identifier for the specific node.
+- The name (e.g., "market", "老陈", "小麦") is a **content-layer field**
+  carried by the node for LLM consumption. The topology engine never
+  inspects it.
+
+## Traversal Configuration (Ontology Table)
+
+The single source of truth for how node types behave during traversal:
+
+```python
+# config/node_ontology.py
+NODE_ONTOLOGY = {
+    1: {"terminal": True},              # traversal stops here (was: item)
+    2: {"terminal": True},              # (was: object)
+    3: {"same_type_block": True},       # don't cross type-3↔type-3 edges (was: zone)
+    4: {},                               # default — full traversal (was: npc)
+}
+```
+
+| Switch | Effect |
+|--------|--------|
+| `terminal: true` | BFS records this node but does not expand its neighbors |
+| `same_type_block: true` | BFS does not cross edges to nodes of the same type_id |
+| (both false) | BFS traverses freely — this is the default |
+
+**Switches are all off by default.** A type not listed in the table gets
+no special behavior. This ensures extensibility: new types automatically
+behave like "full traversal" without code changes.
+
+## Application Beyond Traversal
+
+The ontology table is extensible and should eventually grow beyond
+pure traversal switches. Any layer that currently branches on semantic
+strings should be refactored to read configuration:
+
+```python
+NODE_ONTOLOGY = {
+    1: {
+        "terminal": True,
+        "prompt": {"category": "物品", "order": 3, "fields": ["name"]},
+    },
+    3: {
+        "same_type_block": True,
+        "prompt": {"category": "场所", "order": 1, "fields": ["name", "description"]},
+        "properties": {"has_description": True},
+    },
+    4: {
+        "prompt": {"category": "角色", "order": 2,
+                    "fields": ["name", "role", "mood", "satiety", "memories", "traits", "intent"]},
+        "properties": {"has_attributes": True, "has_inventory": True, "has_memory": True},
+    },
+}
+```
+
+## Implications for Existing Code
+
+Patterns that must be eliminated:
+
+| File | Current Pattern | Target |
+|------|----------------|--------|
+| `interaction_layer.py` | `if e.edge_type == "npc_npc"` | Read from ontology by type_id |
+| `graph_adapter.py` | String-based `type` checks | Use type_id throughout |
+| `post_processor.py` | `op.get("type") == "craft"` | Operation types as numbers |
+| `graph_npc_engine.py` | Entity ID prefix inference (`npc_`/`zone_`) | Replace with type_id lookup |
+| `base_entity.py` | `self.is_leaf` hardcoded by entity_type string | Read from ontology |
+| `graph_engine.py` | `_infer_type` uses string prefixes | Remove, replace with type_id |
+
+## The Full Vision: Configuration-Driven World
+
+The ontology table is the seed of a broader architecture where the engine
+is a pure, domain-agnostic rule engine, and the entire game world is
+described by configuration:
+
+```
+agent_world/
+  core/                  ← Domain-agnostic engine
+    traversal.py          (reads NODE_ONTOLOGY for traversal rules)
+    prompt_builder.py     (reads NODE_ONTOLOGY for presentation)
+    validator.py          (reads VALIDATION_RULES for conservation)
+
+  config/                ← Declarative world definition
+    node_ontology.py      (type IDs + traversal + prompt rules)
+    world_layout.py       (initial topology, items, NPCs, zones)
+    recipes.py            (process chains)
+
+  content/               ← LLM-facing semantic layer
+    npc_descriptions.py
+    zone_descriptions.py
+    item_definitions.py
+```
+
+This design allows a different game world to be created by swapping
+configuration files — no engine code changes required.

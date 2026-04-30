@@ -1,0 +1,3121 @@
+{
+  "total_elapsed": 5274.517094135284,
+  "current_tick": 30,
+  "total_ticks": 30,
+  "phase": 2,
+  "npc_count": 8,
+  "total_llm_calls": 268,
+  "traces": [
+    {
+      "tick": 1,
+      "world_time": "春·第 1 天 08:30",
+      "elapsed": 147.23983097076416,
+      "edge_count": 6,
+      "validator_pass": true,
+      "llm_calls": 7,
+      "system_metrics": {
+        "cpu_load_1min": 6.61,
+        "memory_percent": 23.689001621465238,
+        "memory_used_gb": 7.387184143066406,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 1 | 春·第 1 天 08:30 | ⏱147s | 边6\n    区域: farmx1, marketx3\n    平均: ⚡93 | 饱49\n    最低: 田嫂 ⚡85 | 王老板 饱49\n    最富: 王老板 10金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 97.0,
+          "satiety": 49.0,
+          "mood": 49.0,
+          "gold": 10,
+          "inventory": {
+            "金币": 10,
+            "货物": 5
+          },
+          "memory_count": 4
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 85.0,
+          "satiety": 49.0,
+          "mood": 49.0,
+          "gold": 3,
+          "inventory": {
+            "蔬菜": 10,
+            "金币": 3
+          },
+          "memory_count": 5
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 95.0,
+          "satiety": 49.0,
+          "mood": 49.0,
+          "gold": 5,
+          "inventory": {
+            "金币": 5,
+            "小麦": 15
+          },
+          "memory_count": 3
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 95.0,
+          "satiety": 49.0,
+          "mood": 49.0,
+          "gold": 10,
+          "inventory": {
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 5
+        }
+      ]
+    },
+    {
+      "tick": 2,
+      "world_time": "春·第 1 天 09:00",
+      "elapsed": 244.18619203567505,
+      "edge_count": 5,
+      "validator_pass": true,
+      "llm_calls": 7,
+      "system_metrics": {
+        "cpu_load_1min": 4.94,
+        "memory_percent": 23.6890994843239,
+        "memory_used_gb": 7.387214660644531,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 2 | 春·第 1 天 09:00 | ⏱244s | 边5\n    区域: marketx4\n    平均: ⚡87 | 饱46\n    最低: 田嫂 ⚡79 | 王老板 饱46\n    最富: 王老板 10金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 94.0,
+          "satiety": 46.0,
+          "mood": 48.0,
+          "gold": 10,
+          "inventory": {
+            "金币": 10,
+            "货物": 5
+          },
+          "memory_count": 6
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 79.0,
+          "satiety": 46.0,
+          "mood": 48.0,
+          "gold": 3,
+          "inventory": {
+            "蔬菜": 10,
+            "金币": 3
+          },
+          "memory_count": 7
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 87.0,
+          "satiety": 48.0,
+          "mood": 53.0,
+          "gold": 5,
+          "inventory": {
+            "金币": 5,
+            "小麦": 15
+          },
+          "memory_count": 5
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 87.0,
+          "satiety": 46.0,
+          "mood": 53.0,
+          "gold": 10,
+          "inventory": {
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 7
+        }
+      ]
+    },
+    {
+      "tick": 3,
+      "world_time": "春·第 1 天 09:30",
+      "elapsed": 151.85988807678223,
+      "edge_count": 0,
+      "validator_pass": true,
+      "llm_calls": 2,
+      "system_metrics": {
+        "cpu_load_1min": 4.71,
+        "memory_percent": 23.600496898664844,
+        "memory_used_gb": 7.359584808349609,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 3 | 春·第 1 天 09:30 | ⏱152s | 边0\n    区域: tavernx4\n    平均: ⚡82 | 饱46\n    最低: 田嫂 ⚡74 | 王老板 饱45\n    最富: 王老板 10金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 89.0,
+          "satiety": 45.0,
+          "mood": 47.0,
+          "gold": 10,
+          "inventory": {
+            "金币": 10,
+            "货物": 5
+          },
+          "memory_count": 7
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "tavern",
+          "vitality": 74.0,
+          "satiety": 45.0,
+          "mood": 47.0,
+          "gold": 3,
+          "inventory": {
+            "蔬菜": 10,
+            "金币": 3
+          },
+          "memory_count": 8
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "tavern",
+          "vitality": 82.0,
+          "satiety": 47.0,
+          "mood": 52.0,
+          "gold": 5,
+          "inventory": {
+            "金币": 5,
+            "小麦": 15
+          },
+          "memory_count": 6
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "tavern",
+          "vitality": 82.0,
+          "satiety": 45.0,
+          "mood": 52.0,
+          "gold": 10,
+          "inventory": {
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 8
+        }
+      ]
+    },
+    {
+      "tick": 4,
+      "world_time": "春·第 1 天 10:00",
+      "elapsed": 150.41672563552856,
+      "edge_count": 5,
+      "validator_pass": true,
+      "llm_calls": 7,
+      "system_metrics": {
+        "cpu_load_1min": 4.49,
+        "memory_percent": 23.600753788668825,
+        "memory_used_gb": 7.3596649169921875,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 4 | 春·第 1 天 10:00 | ⏱150s | 边5\n    区域: marketx4\n    平均: ⚡75 | 饱42\n    最低: 田嫂 ⚡68 | 王老板 饱41\n    最富: 王老板 10金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 84.0,
+          "satiety": 41.0,
+          "mood": 43.0,
+          "gold": 10,
+          "inventory": {
+            "金币": 10,
+            "货物": 5
+          },
+          "memory_count": 10
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 68.0,
+          "satiety": 42.0,
+          "mood": 51.0,
+          "gold": 3,
+          "inventory": {
+            "蔬菜": 10,
+            "金币": 3
+          },
+          "memory_count": 10
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 74.0,
+          "satiety": 43.0,
+          "mood": 54.0,
+          "gold": 5,
+          "inventory": {
+            "金币": 5,
+            "小麦": 15
+          },
+          "memory_count": 9
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 75.0,
+          "satiety": 41.0,
+          "mood": 48.0,
+          "gold": 10,
+          "inventory": {
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 10
+        }
+      ]
+    },
+    {
+      "tick": 5,
+      "world_time": "春·第 1 天 10:30",
+      "elapsed": 167.13351559638977,
+      "edge_count": 4,
+      "validator_pass": true,
+      "llm_calls": 7,
+      "system_metrics": {
+        "cpu_load_1min": 5.09,
+        "memory_percent": 23.71832378049116,
+        "memory_used_gb": 7.396327972412109,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 5 | 春·第 1 天 10:30 | ⏱167s | 边4\n    区域: marketx4\n    平均: ⚡70 | 饱37\n    最低: 田嫂 ⚡62 | 王老板 饱36\n    最富: 田嫂 18金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 80.0,
+          "satiety": 36.0,
+          "mood": 45.0,
+          "gold": 0,
+          "inventory": {
+            "货物": 5,
+            "小麦": 5
+          },
+          "memory_count": 13
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 62.0,
+          "satiety": 37.0,
+          "mood": 58.0,
+          "gold": 18,
+          "inventory": {
+            "金币": 18,
+            "小麦": 10
+          },
+          "memory_count": 13
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 66.0,
+          "satiety": 37.0,
+          "mood": 63.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 10,
+            "金币": 10
+          },
+          "memory_count": 14
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 72.0,
+          "satiety": 37.0,
+          "mood": 52.0,
+          "gold": 13,
+          "inventory": {
+            "金币": 13,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 12
+        }
+      ]
+    },
+    {
+      "tick": 6,
+      "world_time": "春·第 1 天 11:00",
+      "elapsed": 101.79884219169617,
+      "edge_count": 2,
+      "validator_pass": true,
+      "llm_calls": 7,
+      "system_metrics": {
+        "cpu_load_1min": 4.9,
+        "memory_percent": 23.757725813959034,
+        "memory_used_gb": 7.4086151123046875,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 6 | 春·第 1 天 11:00 | ⏱102s | 边2\n    区域: marketx4\n    平均: ⚡66 | 饱31\n    最低: 田嫂 ⚡57 | 王老板 饱30\n    最富: 田嫂 23金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 77.0,
+          "satiety": 30.0,
+          "mood": 44.0,
+          "gold": 0,
+          "inventory": {
+            "货物": 5,
+            "小麦": 10
+          },
+          "memory_count": 15
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 57.0,
+          "satiety": 31.0,
+          "mood": 57.0,
+          "gold": 23,
+          "inventory": {
+            "金币": 23,
+            "小麦": 5
+          },
+          "memory_count": 15
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 63.0,
+          "satiety": 31.0,
+          "mood": 64.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 10,
+            "金币": 10
+          },
+          "memory_count": 16
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 68.0,
+          "satiety": 31.0,
+          "mood": 51.0,
+          "gold": 13,
+          "inventory": {
+            "金币": 13,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 14
+        }
+      ]
+    },
+    {
+      "tick": 7,
+      "world_time": "春·第 1 天 11:30",
+      "elapsed": 108.75670433044434,
+      "edge_count": 2,
+      "validator_pass": true,
+      "llm_calls": 7,
+      "system_metrics": {
+        "cpu_load_1min": 4.75,
+        "memory_percent": 23.752135398158096,
+        "memory_used_gb": 7.406871795654297,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 7 | 春·第 1 天 11:30 | ⏱109s | 边2\n    区域: marketx4\n    平均: ⚡62 | 饱40\n    最低: 田嫂 ⚡52 | 王老板 饱34\n    最富: 田嫂 23金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 74.0,
+          "satiety": 34.0,
+          "mood": 46.0,
+          "gold": 0,
+          "inventory": {
+            "货物": 5,
+            "小麦": 10
+          },
+          "memory_count": 17
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 52.0,
+          "satiety": 42.0,
+          "mood": 61.0,
+          "gold": 23,
+          "inventory": {
+            "金币": 23,
+            "小麦": 5
+          },
+          "memory_count": 17
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 58.0,
+          "satiety": 45.0,
+          "mood": 71.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 10,
+            "金币": 10
+          },
+          "memory_count": 18
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 63.0,
+          "satiety": 38.0,
+          "mood": 53.0,
+          "gold": 13,
+          "inventory": {
+            "金币": 13,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 16
+        }
+      ]
+    },
+    {
+      "tick": 8,
+      "world_time": "春·第 1 天 12:00",
+      "elapsed": 100.96447563171387,
+      "edge_count": 3,
+      "validator_pass": true,
+      "llm_calls": 7,
+      "system_metrics": {
+        "cpu_load_1min": 4.04,
+        "memory_percent": 23.64729981081886,
+        "memory_used_gb": 7.374179840087891,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 8 | 春·第 1 天 12:00 | ⏱101s | 边3\n    区域: marketx4\n    平均: ⚡56 | 饱52\n    最低: 田嫂 ⚡47 | 王老板 饱21\n    最富: 田嫂 23金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 66.0,
+          "satiety": 21.0,
+          "mood": 45.0,
+          "gold": 5,
+          "inventory": {
+            "金币": 5,
+            "货物": 5,
+            "小麦": 10
+          },
+          "memory_count": 19
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 47.0,
+          "satiety": 61.0,
+          "mood": 60.0,
+          "gold": 23,
+          "inventory": {
+            "金币": 23,
+            "小麦": 5
+          },
+          "memory_count": 19
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 53.0,
+          "satiety": 69.0,
+          "mood": 70.0,
+          "gold": 2,
+          "inventory": {
+            "蔬菜": 10,
+            "金币": 2
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 58.0,
+          "satiety": 55.0,
+          "mood": 52.0,
+          "gold": 16,
+          "inventory": {
+            "金币": 16,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 18
+        }
+      ]
+    },
+    {
+      "tick": 9,
+      "world_time": "春·第 1 天 12:30",
+      "elapsed": 176.83511233329773,
+      "edge_count": 3,
+      "validator_pass": true,
+      "llm_calls": 7,
+      "system_metrics": {
+        "cpu_load_1min": 4.1,
+        "memory_percent": 23.741590675137513,
+        "memory_used_gb": 7.403583526611328,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 9 | 春·第 1 天 12:30 | ⏱177s | 边3\n    区域: marketx4\n    平均: ⚡48 | 饱52\n    最低: 田嫂 ⚡41 | 王老板 饱25\n    最富: 田嫂 29金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 56.0,
+          "satiety": 25.0,
+          "mood": 44.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 5,
+            "货物": 5,
+            "小麦": 12
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 41.0,
+          "satiety": 60.0,
+          "mood": 59.0,
+          "gold": 29,
+          "inventory": {
+            "金币": 29,
+            "小麦": 3
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 45.0,
+          "satiety": 68.0,
+          "mood": 69.0,
+          "gold": 18,
+          "inventory": {
+            "蔬菜": 2,
+            "金币": 18
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 50.0,
+          "satiety": 54.0,
+          "mood": 51.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        }
+      ]
+    },
+    {
+      "tick": 10,
+      "world_time": "春·第 1 天 13:00",
+      "elapsed": 131.77413630485535,
+      "edge_count": 3,
+      "validator_pass": true,
+      "llm_calls": 7,
+      "system_metrics": {
+        "cpu_load_1min": 4.53,
+        "memory_percent": 23.796846491708262,
+        "memory_used_gb": 7.420814514160156,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 10 | 春·第 1 天 13:00 | ⏱132s | 边3\n    区域: marketx4\n    平均: ⚡39 | 饱47\n    最低: 田嫂 ⚡29 | 王老板 饱9\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 51.0,
+          "satiety": 9.0,
+          "mood": 43.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 29.0,
+          "satiety": 59.0,
+          "mood": 58.0,
+          "gold": 59,
+          "inventory": {
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 35.0,
+          "satiety": 67.0,
+          "mood": 68.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 42.0,
+          "satiety": 53.0,
+          "mood": 55.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        }
+      ]
+    },
+    {
+      "tick": 11,
+      "world_time": "春·第 1 天 13:30",
+      "elapsed": 309.3907518386841,
+      "edge_count": 7,
+      "validator_pass": true,
+      "llm_calls": 9,
+      "system_metrics": {
+        "cpu_load_1min": 5.46,
+        "memory_percent": 23.758692209688302,
+        "memory_used_gb": 7.408916473388672,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 11 | 春·第 1 天 13:30 | ⏱309s | 边7\n    区域: farmx2, marketx3, tavernx1\n    平均: ⚡55 | 饱47\n    最低: 田嫂 ⚡24 | 王老板 饱25\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 92.0,
+          "satiety": 44.0,
+          "mood": 52.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 15,
+            "market_stall_2": 1,
+            "金币": 8
+          },
+          "memory_count": 3
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 45.0,
+          "satiety": 25.0,
+          "mood": 47.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 24.0,
+          "satiety": 55.0,
+          "mood": 62.0,
+          "gold": 59,
+          "inventory": {
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 31.0,
+          "satiety": 63.0,
+          "mood": 69.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 100.0,
+          "satiety": 45.0,
+          "mood": 51.0,
+          "gold": 30,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "酒": 20,
+            "金币": 30
+          },
+          "memory_count": 2
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 40.0,
+          "satiety": 49.0,
+          "mood": 56.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        }
+      ]
+    },
+    {
+      "tick": 12,
+      "world_time": "春·第 1 天 14:00",
+      "elapsed": 153.78269219398499,
+      "edge_count": 2,
+      "validator_pass": true,
+      "llm_calls": 9,
+      "system_metrics": {
+        "cpu_load_1min": 5.69,
+        "memory_percent": 23.728012203498476,
+        "memory_used_gb": 7.399349212646484,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 12 | 春·第 1 天 14:00 | ⏱154s | 边2\n    区域: farmx2, marketx3, tavernx1\n    平均: ⚡52 | 饱45\n    最低: 田嫂 ⚡22 | 王老板 饱22\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 87.0,
+          "satiety": 41.0,
+          "mood": 59.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 14,
+            "金币": 8,
+            "market_stall_2": 1
+          },
+          "memory_count": 5
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 42.0,
+          "satiety": 22.0,
+          "mood": 51.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 22.0,
+          "satiety": 59.0,
+          "mood": 71.0,
+          "gold": 59,
+          "inventory": {
+            "面包": 1,
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 28.0,
+          "satiety": 60.0,
+          "mood": 70.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 98.0,
+          "satiety": 41.0,
+          "mood": 52.0,
+          "gold": 30,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "酒": 20,
+            "金币": 30
+          },
+          "memory_count": 4
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 36.0,
+          "satiety": 46.0,
+          "mood": 60.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        }
+      ]
+    },
+    {
+      "tick": 13,
+      "world_time": "春·第 1 天 14:30",
+      "elapsed": 146.68403100967407,
+      "edge_count": 4,
+      "validator_pass": true,
+      "llm_calls": 9,
+      "system_metrics": {
+        "cpu_load_1min": 5.19,
+        "memory_percent": 23.675777902688843,
+        "memory_used_gb": 7.383060455322266,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 13 | 春·第 1 天 14:30 | ⏱147s | 边4\n    区域: farmx2, marketx4\n    平均: ⚡54 | 饱46\n    最低: 老张 ⚡33 | 王老板 饱18\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 92.0,
+          "satiety": 37.0,
+          "mood": 63.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 13,
+            "金币": 8,
+            "market_stall_2": 1
+          },
+          "memory_count": 8
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 39.0,
+          "satiety": 18.0,
+          "mood": 53.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 34.0,
+          "satiety": 83.0,
+          "mood": 78.0,
+          "gold": 59,
+          "inventory": {
+            "面包": 1,
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 33.0,
+          "satiety": 56.0,
+          "mood": 71.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 93.0,
+          "satiety": 37.0,
+          "mood": 56.0,
+          "gold": 30,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "酒": 20,
+            "金币": 30
+          },
+          "memory_count": 7
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 33.0,
+          "satiety": 42.0,
+          "mood": 62.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        }
+      ]
+    },
+    {
+      "tick": 14,
+      "world_time": "春·第 1 天 15:00",
+      "elapsed": 180.31715631484985,
+      "edge_count": 2,
+      "validator_pass": true,
+      "llm_calls": 9,
+      "system_metrics": {
+        "cpu_load_1min": 5.48,
+        "memory_percent": 23.751034440998176,
+        "memory_used_gb": 7.406528472900391,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 14 | 春·第 1 天 15:00 | ⏱180s | 边2\n    区域: farmx2, marketx3, tavernx1\n    平均: ⚡54 | 饱45\n    最低: 王老板 ⚡34 | 王老板 饱25\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 94.0,
+          "satiety": 35.0,
+          "mood": 62.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 13,
+            "金币": 8,
+            "market_stall_2": 1
+          },
+          "memory_count": 9
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 34.0,
+          "satiety": 25.0,
+          "mood": 47.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 36.0,
+          "satiety": 81.0,
+          "mood": 77.0,
+          "gold": 59,
+          "inventory": {
+            "面包": 1,
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 35.0,
+          "satiety": 54.0,
+          "mood": 70.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 90.0,
+          "satiety": 35.0,
+          "mood": 55.0,
+          "gold": 30,
+          "inventory": {
+            "酒": 20,
+            "金币": 30,
+            "tavern_bar_counter_1": 1
+          },
+          "memory_count": 9
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 35.0,
+          "satiety": 40.0,
+          "mood": 61.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        }
+      ]
+    },
+    {
+      "tick": 15,
+      "world_time": "春·第 1 天 15:30",
+      "elapsed": 131.6379749774933,
+      "edge_count": 3,
+      "validator_pass": true,
+      "llm_calls": 9,
+      "system_metrics": {
+        "cpu_load_1min": 5.07,
+        "memory_percent": 23.809935649054005,
+        "memory_used_gb": 7.424896240234375,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 15 | 春·第 1 天 15:30 | ⏱132s | 边3\n    区域: farmx3, marketx2, tavernx1\n    平均: ⚡51 | 饱49\n    最低: 王老板 ⚡26 | 张大娘 饱34\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 91.0,
+          "satiety": 34.0,
+          "mood": 61.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 12,
+            "金币": 8,
+            "market_stall_2": 1
+          },
+          "memory_count": 11
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 26.0,
+          "satiety": 42.0,
+          "mood": 46.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 41.0,
+          "satiety": 92.0,
+          "mood": 79.0,
+          "gold": 59,
+          "inventory": {
+            "面包": 2,
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 30.0,
+          "satiety": 53.0,
+          "mood": 69.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 87.0,
+          "satiety": 34.0,
+          "mood": 54.0,
+          "gold": 30,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "酒": 20,
+            "金币": 30
+          },
+          "memory_count": 10
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 31.0,
+          "satiety": 39.0,
+          "mood": 60.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        }
+      ]
+    },
+    {
+      "tick": 16,
+      "world_time": "春·第 1 天 16:00",
+      "elapsed": 94.06610774993896,
+      "edge_count": 0,
+      "validator_pass": true,
+      "llm_calls": 8,
+      "system_metrics": {
+        "cpu_load_1min": 4.9,
+        "memory_percent": 23.85991910411446,
+        "memory_used_gb": 7.440483093261719,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 16 | 春·第 1 天 16:00 | ⏱94s | 边0\n    区域: farmx3, marketx2, tavernx1\n    平均: ⚡46 | 饱44\n    最低: 王老板 ⚡20 | 张大娘 饱28\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 87.0,
+          "satiety": 28.0,
+          "mood": 57.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 12,
+            "金币": 8,
+            "market_stall_2": 1
+          },
+          "memory_count": 12
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 20.0,
+          "satiety": 37.0,
+          "mood": 42.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 36.0,
+          "satiety": 88.0,
+          "mood": 76.0,
+          "gold": 59,
+          "inventory": {
+            "面包": 2,
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 25.0,
+          "satiety": 49.0,
+          "mood": 66.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 83.0,
+          "satiety": 28.0,
+          "mood": 50.0,
+          "gold": 30,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "酒": 20,
+            "金币": 30
+          },
+          "memory_count": 11
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 25.0,
+          "satiety": 34.0,
+          "mood": 56.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        }
+      ]
+    },
+    {
+      "tick": 17,
+      "world_time": "春·第 1 天 16:30",
+      "elapsed": 92.79987978935242,
+      "edge_count": 0,
+      "validator_pass": true,
+      "llm_calls": 8,
+      "system_metrics": {
+        "cpu_load_1min": 5.26,
+        "memory_percent": 23.776026168528404,
+        "memory_used_gb": 7.4143218994140625,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 17 | 春·第 1 天 16:30 | ⏱93s | 边0\n    区域: farmx3, marketx2, tavernx1\n    平均: ⚡48 | 饱45\n    最低: 王老板 ⚡23 | 老陈 饱28\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 87.0,
+          "satiety": 30.0,
+          "mood": 53.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 12,
+            "金币": 8,
+            "market_stall_2": 1
+          },
+          "memory_count": 13
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 23.0,
+          "satiety": 40.0,
+          "mood": 39.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 38.0,
+          "satiety": 88.0,
+          "mood": 75.0,
+          "gold": 59,
+          "inventory": {
+            "面包": 2,
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 28.0,
+          "satiety": 49.0,
+          "mood": 64.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 86.0,
+          "satiety": 28.0,
+          "mood": 47.0,
+          "gold": 30,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "酒": 20,
+            "金币": 30
+          },
+          "memory_count": 12
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 28.0,
+          "satiety": 37.0,
+          "mood": 55.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        }
+      ]
+    },
+    {
+      "tick": 18,
+      "world_time": "春·第 1 天 17:00",
+      "elapsed": 119.68940162658691,
+      "edge_count": 1,
+      "validator_pass": true,
+      "llm_calls": 9,
+      "system_metrics": {
+        "cpu_load_1min": 4.57,
+        "memory_percent": 23.90748045342309,
+        "memory_used_gb": 7.455314636230469,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 18 | 春·第 1 天 17:00 | ⏱120s | 边1\n    区域: farmx3, marketx2, tavernx1\n    平均: ⚡46 | 饱42\n    最低: 王老板 ⚡21 | 张大娘 饱26\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 85.0,
+          "satiety": 26.0,
+          "mood": 50.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 12,
+            "金币": 8,
+            "market_stall_2": 1
+          },
+          "memory_count": 14
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 21.0,
+          "satiety": 36.0,
+          "mood": 36.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 36.0,
+          "satiety": 84.0,
+          "mood": 72.0,
+          "gold": 59,
+          "inventory": {
+            "面包": 2,
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 26.0,
+          "satiety": 45.0,
+          "mood": 61.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 84.0,
+          "satiety": 31.0,
+          "mood": 51.0,
+          "gold": 30,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "酒": 20,
+            "金币": 30
+          },
+          "memory_count": 14
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 26.0,
+          "satiety": 33.0,
+          "mood": 52.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        }
+      ]
+    },
+    {
+      "tick": 19,
+      "world_time": "春·第 1 天 17:30",
+      "elapsed": 241.57106852531433,
+      "edge_count": 2,
+      "validator_pass": true,
+      "llm_calls": 9,
+      "system_metrics": {
+        "cpu_load_1min": 5.28,
+        "memory_percent": 23.80084663605598,
+        "memory_used_gb": 7.422061920166016,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 19 | 春·第 1 天 17:30 | ⏱242s | 边2\n    区域: farmx3, marketx1, tavernx2\n    平均: ⚡45 | 饱40\n    最低: 王老板 ⚡19 | 张大娘 饱23\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 82.0,
+          "satiety": 23.0,
+          "mood": 49.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 12,
+            "金币": 8,
+            "market_stall_2": 1
+          },
+          "memory_count": 15
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 19.0,
+          "satiety": 33.0,
+          "mood": 35.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 33.0,
+          "satiety": 81.0,
+          "mood": 71.0,
+          "gold": 59,
+          "inventory": {
+            "面包": 2,
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 23.0,
+          "satiety": 42.0,
+          "mood": 60.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 82.0,
+          "satiety": 28.0,
+          "mood": 50.0,
+          "gold": 30,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "酒": 20,
+            "金币": 30
+          },
+          "memory_count": 15
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "tavern",
+          "vitality": 33.0,
+          "satiety": 30.0,
+          "mood": 53.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        }
+      ]
+    },
+    {
+      "tick": 20,
+      "world_time": "春·第 1 天 18:00",
+      "elapsed": 147.4227170944214,
+      "edge_count": 2,
+      "validator_pass": true,
+      "llm_calls": 9,
+      "system_metrics": {
+        "cpu_load_1min": 5.49,
+        "memory_percent": 23.75036163384489,
+        "memory_used_gb": 7.406318664550781,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 20 | 春·第 1 天 18:00 | ⏱147s | 边2\n    区域: farmx3, marketx1, tavernx2\n    平均: ⚡47 | 饱39\n    最低: 王老板 ⚡25 | 老陈 饱23\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 87.0,
+          "satiety": 40.0,
+          "mood": 60.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 14,
+            "金币": 8,
+            "market_stall_2": 1
+          },
+          "memory_count": 17
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 25.0,
+          "satiety": 27.0,
+          "mood": 39.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 26.0,
+          "satiety": 72.0,
+          "mood": 78.0,
+          "gold": 59,
+          "inventory": {
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 31.0,
+          "satiety": 36.0,
+          "mood": 56.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 87.0,
+          "satiety": 23.0,
+          "mood": 52.0,
+          "gold": 30,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "酒": 20,
+            "金币": 30
+          },
+          "memory_count": 17
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "tavern",
+          "vitality": 28.0,
+          "satiety": 37.0,
+          "mood": 59.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        }
+      ]
+    },
+    {
+      "tick": 21,
+      "world_time": "春·第 1 天 18:30",
+      "elapsed": 179.23616933822632,
+      "edge_count": 4,
+      "validator_pass": false,
+      "llm_calls": 11,
+      "system_metrics": {
+        "cpu_load_1min": 4.83,
+        "memory_percent": 24.031643955347622,
+        "memory_used_gb": 7.4940338134765625,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 21 | 春·第 1 天 18:30 | ⏱179s | 边4\n    区域: farmx2, marketx4, tavernx2\n    平均: ⚡60 | 饱41\n    最低: 王老板 ⚡25 | 老陈 饱22\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%\n    ⚠️ Validator FAIL!",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 87.0,
+          "satiety": 39.0,
+          "mood": 59.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 14,
+            "金币": 8,
+            "market_stall_2": 1
+          },
+          "memory_count": 19
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 25.0,
+          "satiety": 26.0,
+          "mood": 38.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 26.0,
+          "satiety": 71.0,
+          "mood": 77.0,
+          "gold": 59,
+          "inventory": {
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 31.0,
+          "satiety": 35.0,
+          "mood": 55.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 87.0,
+          "satiety": 22.0,
+          "mood": 51.0,
+          "gold": 30,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "酒": 20,
+            "金币": 30
+          },
+          "memory_count": 19
+        },
+        {
+          "name": "赵铁柱",
+          "role": "guard",
+          "zone": "market",
+          "vitality": 100.0,
+          "satiety": 49.0,
+          "mood": 49.0,
+          "gold": 8,
+          "inventory": {
+            "金币": 8,
+            "铁锭": 5
+          },
+          "memory_count": 3
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "tavern",
+          "vitality": 28.0,
+          "satiety": 36.0,
+          "mood": 58.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "陈小梅",
+          "role": "wanderer",
+          "zone": "market",
+          "vitality": 100.0,
+          "satiety": 49.0,
+          "mood": 49.0,
+          "gold": 5,
+          "inventory": {
+            "金币": 5
+          },
+          "memory_count": 3
+        }
+      ]
+    },
+    {
+      "tick": 22,
+      "world_time": "春·第 1 天 19:00",
+      "elapsed": 177.86226654052734,
+      "edge_count": 3,
+      "validator_pass": true,
+      "llm_calls": 11,
+      "system_metrics": {
+        "cpu_load_1min": 5.28,
+        "memory_percent": 24.0460664941426,
+        "memory_used_gb": 7.498531341552734,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 22 | 春·第 1 天 19:00 | ⏱178s | 边3\n    区域: farmx3, marketx3, tavernx2\n    平均: ⚡58 | 饱36\n    最低: 王老板 ⚡19 | 老陈 饱15\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 84.0,
+          "satiety": 33.0,
+          "mood": 58.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 14,
+            "market_stall_2": 1,
+            "金币": 8
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 19.0,
+          "satiety": 17.0,
+          "mood": 37.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 21.0,
+          "satiety": 66.0,
+          "mood": 76.0,
+          "gold": 59,
+          "inventory": {
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 35.0,
+          "satiety": 29.0,
+          "mood": 54.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 83.0,
+          "satiety": 15.0,
+          "mood": 54.0,
+          "gold": 30,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "酒": 20,
+            "金币": 30
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "赵铁柱",
+          "role": "guard",
+          "zone": "market",
+          "vitality": 97.0,
+          "satiety": 44.0,
+          "mood": 48.0,
+          "gold": 8,
+          "inventory": {
+            "金币": 8,
+            "铁锭": 5
+          },
+          "memory_count": 4
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "tavern",
+          "vitality": 36.0,
+          "satiety": 50.0,
+          "mood": 62.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "陈小梅",
+          "role": "wanderer",
+          "zone": "market",
+          "vitality": 92.0,
+          "satiety": 36.0,
+          "mood": 40.0,
+          "gold": 5,
+          "inventory": {
+            "金币": 5
+          },
+          "memory_count": 5
+        }
+      ]
+    },
+    {
+      "tick": 23,
+      "world_time": "春·第 1 天 20:00",
+      "elapsed": 289.2011950016022,
+      "edge_count": 4,
+      "validator_pass": true,
+      "llm_calls": 17,
+      "system_metrics": {
+        "cpu_load_1min": 4.22,
+        "memory_percent": 23.66410775679367,
+        "memory_used_gb": 7.379421234130859,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 23 | 春·第 1 天 20:00 | ⏱289s | 边4\n    区域: farmx4, marketx3, tavernx1\n    平均: ⚡56 | 饱33\n    最低: 王老板 ⚡14 | 老陈 饱9\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 81.0,
+          "satiety": 27.0,
+          "mood": 65.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 13,
+            "market_stall_2": 1,
+            "金币": 8
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 14.0,
+          "satiety": 13.0,
+          "mood": 34.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 18.0,
+          "satiety": 60.0,
+          "mood": 73.0,
+          "gold": 59,
+          "inventory": {
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 40.0,
+          "satiety": 25.0,
+          "mood": 50.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 75.0,
+          "satiety": 9.0,
+          "mood": 50.0,
+          "gold": 30,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "酒": 20,
+            "金币": 30
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "赵铁柱",
+          "role": "guard",
+          "zone": "market",
+          "vitality": 94.0,
+          "satiety": 38.0,
+          "mood": 45.0,
+          "gold": 8,
+          "inventory": {
+            "金币": 8,
+            "铁锭": 5
+          },
+          "memory_count": 5
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "tavern",
+          "vitality": 33.0,
+          "satiety": 44.0,
+          "mood": 59.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "陈小梅",
+          "role": "wanderer",
+          "zone": "market",
+          "vitality": 90.0,
+          "satiety": 45.0,
+          "mood": 49.0,
+          "gold": 5,
+          "inventory": {
+            "面包": 1,
+            "金币": 5
+          },
+          "memory_count": 7
+        }
+      ]
+    },
+    {
+      "tick": 24,
+      "world_time": "春·第 1 天 20:30",
+      "elapsed": 161.77161240577698,
+      "edge_count": 13,
+      "validator_pass": true,
+      "llm_calls": 11,
+      "system_metrics": {
+        "cpu_load_1min": 5.02,
+        "memory_percent": 23.741725236568172,
+        "memory_used_gb": 7.40362548828125,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 24 | 春·第 1 天 20:30 | ⏱162s | 边13\n    区域: farmx1, marketx4, tavernx3\n    平均: ⚡53 | 饱32\n    最低: 王老板 ⚡4 | 老陈 饱8\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 81.0,
+          "satiety": 31.0,
+          "mood": 64.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 13,
+            "market_stall_2": 1,
+            "金币": 8
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 4.0,
+          "satiety": 12.0,
+          "mood": 33.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 18.0,
+          "satiety": 59.0,
+          "mood": 72.0,
+          "gold": 59,
+          "inventory": {
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "market",
+          "vitality": 32.0,
+          "satiety": 24.0,
+          "mood": 49.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 70.0,
+          "satiety": 8.0,
+          "mood": 49.0,
+          "gold": 30,
+          "inventory": {
+            "酒": 20,
+            "金币": 30,
+            "tavern_bar_counter_1": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "赵铁柱",
+          "role": "guard",
+          "zone": "market",
+          "vitality": 99.0,
+          "satiety": 37.0,
+          "mood": 44.0,
+          "gold": 8,
+          "inventory": {
+            "金币": 8,
+            "铁锭": 5
+          },
+          "memory_count": 8
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "tavern",
+          "vitality": 33.0,
+          "satiety": 43.0,
+          "mood": 58.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "陈小梅",
+          "role": "wanderer",
+          "zone": "market",
+          "vitality": 90.0,
+          "satiety": 44.0,
+          "mood": 48.0,
+          "gold": 5,
+          "inventory": {
+            "面包": 1,
+            "金币": 5
+          },
+          "memory_count": 8
+        }
+      ]
+    },
+    {
+      "tick": 25,
+      "world_time": "春·第 1 天 21:00",
+      "elapsed": 239.348162651062,
+      "edge_count": 8,
+      "validator_pass": true,
+      "llm_calls": 11,
+      "system_metrics": {
+        "cpu_load_1min": 5.26,
+        "memory_percent": 23.85059766682712,
+        "memory_used_gb": 7.4375762939453125,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 25 | 春·第 1 天 21:00 | ⏱239s | 边8\n    区域: farmx3, marketx2, tavernx3\n    平均: ⚡48 | 饱31\n    最低: 王老板 ⚡0 | 老陈 饱0\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 78.0,
+          "satiety": 25.0,
+          "mood": 60.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 13,
+            "market_stall_2": 1,
+            "金币": 8
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 0.0,
+          "satiety": 26.0,
+          "mood": 37.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 15.0,
+          "satiety": 53.0,
+          "mood": 68.0,
+          "gold": 59,
+          "inventory": {
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 24.0,
+          "satiety": 38.0,
+          "mood": 53.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "farm",
+          "vitality": 62.0,
+          "satiety": 0.0,
+          "mood": 43.0,
+          "gold": 30,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "酒": 20,
+            "金币": 30
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "赵铁柱",
+          "role": "guard",
+          "zone": "market",
+          "vitality": 94.0,
+          "satiety": 28.0,
+          "mood": 40.0,
+          "gold": 8,
+          "inventory": {
+            "金币": 8,
+            "铁锭": 5
+          },
+          "memory_count": 10
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "tavern",
+          "vitality": 30.0,
+          "satiety": 42.0,
+          "mood": 62.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "陈小梅",
+          "role": "wanderer",
+          "zone": "tavern",
+          "vitality": 85.0,
+          "satiety": 35.0,
+          "mood": 42.0,
+          "gold": 5,
+          "inventory": {
+            "面包": 1,
+            "金币": 5
+          },
+          "memory_count": 10
+        }
+      ]
+    },
+    {
+      "tick": 26,
+      "world_time": "春·第 1 天 21:30",
+      "elapsed": 207.2056748867035,
+      "edge_count": 4,
+      "validator_pass": true,
+      "llm_calls": 11,
+      "system_metrics": {
+        "cpu_load_1min": 6.07,
+        "memory_percent": 23.81448627198168,
+        "memory_used_gb": 7.4263153076171875,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 26 | 春·第 1 天 21:30 | ⏱207s | 边4\n    区域: farmx2, marketx4, tavernx2\n    平均: ⚡47 | 饱27\n    最低: 王老板 ⚡0 | 老陈 饱0\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 76.0,
+          "satiety": 21.0,
+          "mood": 57.0,
+          "gold": 8,
+          "inventory": {
+            "面包": 13,
+            "market_stall_2": 1,
+            "金币": 8
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 0.0,
+          "satiety": 22.0,
+          "mood": 34.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 20.0,
+          "satiety": 49.0,
+          "mood": 67.0,
+          "gold": 59,
+          "inventory": {
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 29.0,
+          "satiety": 34.0,
+          "mood": 52.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 57.0,
+          "satiety": 0.0,
+          "mood": 42.0,
+          "gold": 30,
+          "inventory": {
+            "酒": 20,
+            "金币": 30,
+            "tavern_bar_counter_1": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "赵铁柱",
+          "role": "guard",
+          "zone": "market",
+          "vitality": 92.0,
+          "satiety": 24.0,
+          "mood": 37.0,
+          "gold": 8,
+          "inventory": {
+            "金币": 8,
+            "铁锭": 5
+          },
+          "memory_count": 11
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 22.0,
+          "satiety": 38.0,
+          "mood": 59.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "陈小梅",
+          "role": "wanderer",
+          "zone": "tavern",
+          "vitality": 83.0,
+          "satiety": 31.0,
+          "mood": 39.0,
+          "gold": 5,
+          "inventory": {
+            "面包": 1,
+            "金币": 5
+          },
+          "memory_count": 11
+        }
+      ]
+    },
+    {
+      "tick": 27,
+      "world_time": "春·第 1 天 22:00",
+      "elapsed": 154.70746636390686,
+      "edge_count": 3,
+      "validator_pass": true,
+      "llm_calls": 11,
+      "system_metrics": {
+        "cpu_load_1min": 5.42,
+        "memory_percent": 23.735364150755288,
+        "memory_used_gb": 7.401641845703125,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 27 | 春·第 1 天 22:00 | ⏱155s | 边3\n    区域: farmx2, marketx3, tavernx3\n    平均: ⚡46 | 饱26\n    最低: 王老板 ⚡0 | 老陈 饱14\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 74.0,
+          "satiety": 20.0,
+          "mood": 62.0,
+          "gold": 11,
+          "inventory": {
+            "面包": 11,
+            "market_stall_2": 1,
+            "金币": 11
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 0.0,
+          "satiety": 21.0,
+          "mood": 25.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 25.0,
+          "satiety": 44.0,
+          "mood": 64.0,
+          "gold": 59,
+          "inventory": {
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 24.0,
+          "satiety": 29.0,
+          "mood": 49.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 54.0,
+          "satiety": 14.0,
+          "mood": 49.0,
+          "gold": 27,
+          "inventory": {
+            "面包": 2,
+            "酒": 20,
+            "金币": 27,
+            "tavern_bar_counter_1": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "赵铁柱",
+          "role": "guard",
+          "zone": "tavern",
+          "vitality": 84.0,
+          "satiety": 23.0,
+          "mood": 31.0,
+          "gold": 8,
+          "inventory": {
+            "金币": 8,
+            "铁锭": 5
+          },
+          "memory_count": 13
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 30.0,
+          "satiety": 32.0,
+          "mood": 55.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "陈小梅",
+          "role": "wanderer",
+          "zone": "tavern",
+          "vitality": 78.0,
+          "satiety": 25.0,
+          "mood": 35.0,
+          "gold": 5,
+          "inventory": {
+            "面包": 1,
+            "金币": 5
+          },
+          "memory_count": 12
+        }
+      ]
+    },
+    {
+      "tick": 28,
+      "world_time": "春·第 1 天 22:30",
+      "elapsed": 354.52208971977234,
+      "edge_count": 6,
+      "validator_pass": true,
+      "llm_calls": 10,
+      "system_metrics": {
+        "cpu_load_1min": 5.1,
+        "memory_percent": 23.847380425348682,
+        "memory_used_gb": 7.436573028564453,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 28 | 春·第 1 天 22:30 | ⏱355s | 边6\n    区域: farmx2, marketx2, tavernx4\n    平均: ⚡40 | 饱20\n    最低: 王老板 ⚡0 | 老陈 饱13\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 64.0,
+          "satiety": 14.0,
+          "mood": 58.0,
+          "gold": 11,
+          "inventory": {
+            "面包": 11,
+            "market_stall_2": 1,
+            "金币": 11
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 0.0,
+          "satiety": 16.0,
+          "mood": 19.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 22.0,
+          "satiety": 38.0,
+          "mood": 63.0,
+          "gold": 59,
+          "inventory": {
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 21.0,
+          "satiety": 23.0,
+          "mood": 48.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 49.0,
+          "satiety": 13.0,
+          "mood": 48.0,
+          "gold": 27,
+          "inventory": {
+            "面包": 2,
+            "酒": 20,
+            "金币": 27,
+            "tavern_bar_counter_1": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "赵铁柱",
+          "role": "guard",
+          "zone": "tavern",
+          "vitality": 78.0,
+          "satiety": 17.0,
+          "mood": 33.0,
+          "gold": 8,
+          "inventory": {
+            "金币": 8,
+            "铁锭": 5
+          },
+          "memory_count": 15
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 20.0,
+          "satiety": 25.0,
+          "mood": 59.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "陈小梅",
+          "role": "wanderer",
+          "zone": "market",
+          "vitality": 66.0,
+          "satiety": 18.0,
+          "mood": 29.0,
+          "gold": 5,
+          "inventory": {
+            "面包": 1,
+            "金币": 5
+          },
+          "memory_count": 14
+        }
+      ]
+    },
+    {
+      "tick": 29,
+      "world_time": "春·第 1 天 23:00",
+      "elapsed": 168.53774499893188,
+      "edge_count": 4,
+      "validator_pass": true,
+      "llm_calls": 11,
+      "system_metrics": {
+        "cpu_load_1min": 4.24,
+        "memory_percent": 23.885681501656634,
+        "memory_used_gb": 7.448516845703125,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 29 | 春·第 1 天 23:00 | ⏱169s | 边4\n    区域: farmx2, marketx4, tavernx2\n    平均: ⚡42 | 饱19\n    最低: 王老板 ⚡0 | 老陈 饱9\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 62.0,
+          "satiety": 16.0,
+          "mood": 58.0,
+          "gold": 11,
+          "inventory": {
+            "面包": 10,
+            "金币": 11,
+            "market_stall_2": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 0.0,
+          "satiety": 13.0,
+          "mood": 17.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 27.0,
+          "satiety": 35.0,
+          "mood": 61.0,
+          "gold": 59,
+          "inventory": {
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 28.0,
+          "satiety": 25.0,
+          "mood": 48.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 45.0,
+          "satiety": 9.0,
+          "mood": 45.0,
+          "gold": 27,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "面包": 2,
+            "酒": 20,
+            "金币": 27
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "赵铁柱",
+          "role": "guard",
+          "zone": "market",
+          "vitality": 73.0,
+          "satiety": 13.0,
+          "mood": 35.0,
+          "gold": 8,
+          "inventory": {
+            "金币": 8,
+            "铁锭": 5
+          },
+          "memory_count": 17
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 30.0,
+          "satiety": 21.0,
+          "mood": 57.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "陈小梅",
+          "role": "wanderer",
+          "zone": "market",
+          "vitality": 72.0,
+          "satiety": 20.0,
+          "mood": 32.0,
+          "gold": 5,
+          "inventory": {
+            "金币": 5
+          },
+          "memory_count": 15
+        }
+      ]
+    },
+    {
+      "tick": 30,
+      "world_time": "春·第 1 天 23:30",
+      "elapsed": 243.70153164863586,
+      "edge_count": 3,
+      "validator_pass": true,
+      "llm_calls": 11,
+      "system_metrics": {
+        "cpu_load_1min": 4.44,
+        "memory_percent": 23.907125700560446,
+        "memory_used_gb": 7.455204010009766,
+        "memory_total_gb": 31.184024810791016
+      },
+      "summary": "Tick 30 | 春·第 1 天 23:30 | ⏱244s | 边3\n    区域: farmx2, marketx3, tavernx3\n    平均: ⚡39 | 饱17\n    最低: 王老板 ⚡0 | 老陈 饱6\n    最富: 田嫂 59金\n    系统: CPU=0% | MEM=24% | DISK=0%",
+      "npcs": [
+        {
+          "name": "张大娘",
+          "role": "merchant",
+          "zone": "market",
+          "vitality": 58.0,
+          "satiety": 13.0,
+          "mood": 56.0,
+          "gold": 11,
+          "inventory": {
+            "面包": 10,
+            "market_stall_2": 1,
+            "金币": 11
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "王老板",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 0.0,
+          "satiety": 10.0,
+          "mood": 19.0,
+          "gold": 0,
+          "inventory": {
+            "蔬菜": 10,
+            "货物": 5,
+            "小麦": 24
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "田嫂",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 23.0,
+          "satiety": 32.0,
+          "mood": 59.0,
+          "gold": 59,
+          "inventory": {
+            "金币": 59
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老张",
+          "role": "farmer",
+          "zone": "farm",
+          "vitality": 24.0,
+          "satiety": 22.0,
+          "mood": 46.0,
+          "gold": 28,
+          "inventory": {
+            "金币": 28
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "老陈",
+          "role": "merchant",
+          "zone": "tavern",
+          "vitality": 41.0,
+          "satiety": 6.0,
+          "mood": 43.0,
+          "gold": 27,
+          "inventory": {
+            "tavern_bar_counter_1": 1,
+            "面包": 2,
+            "酒": 20,
+            "金币": 27
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "赵铁柱",
+          "role": "guard",
+          "zone": "market",
+          "vitality": 69.0,
+          "satiety": 10.0,
+          "mood": 33.0,
+          "gold": 8,
+          "inventory": {
+            "金币": 8,
+            "铁锭": 5
+          },
+          "memory_count": 19
+        },
+        {
+          "name": "铁匠王",
+          "role": "artisan",
+          "zone": "market",
+          "vitality": 26.0,
+          "satiety": 18.0,
+          "mood": 55.0,
+          "gold": 10,
+          "inventory": {
+            "蔬菜": 3,
+            "金币": 10,
+            "铁锭": 15,
+            "market_stall_1": 1
+          },
+          "memory_count": 20
+        },
+        {
+          "name": "陈小梅",
+          "role": "wanderer",
+          "zone": "tavern",
+          "vitality": 68.0,
+          "satiety": 24.0,
+          "mood": 33.0,
+          "gold": 5,
+          "inventory": {
+            "金币": 5
+          },
+          "memory_count": 18
+        }
+      ]
+    }
+  ]
+}

@@ -277,7 +277,6 @@ class EntityDerivationEngine:
             if an entity with the same name already exists).
         """
         from ..entities.base_entity import Entity
-        from ..models.interaction import EntityInterface
 
         # Step 0: Already exists by entity_id
         existing = self._graph.get_entity(entity_id)
@@ -314,7 +313,7 @@ class EntityDerivationEngine:
 
         # Register any indirectly-needed basic entities
         for basic_name in needed_basics:
-            if basic_name != name:  # Skip the target (will register below)
+            if basic_name != name:
                 basic_eid = f"item_{basic_name}"
                 if not self._graph.get_entity(basic_eid):
                     ent = Entity(
@@ -322,12 +321,6 @@ class EntityDerivationEngine:
                         name=basic_name,
                         entity_type="item",
                     )
-                    ent.add_interface(EntityInterface(
-                        interface_id=f"{basic_eid[:12]}_holdable",
-                        entity_id=basic_eid,
-                        name="可持有",
-                        description=f"可以持有{basic_name}",
-                    ))
                     self._graph.register_entity(ent)
                     DerivationRegistry.add_basic_entity(basic_name)
                     logger.info(
@@ -340,12 +333,6 @@ class EntityDerivationEngine:
             name=name,
             entity_type="item",
         )
-        target_ent.add_interface(EntityInterface(
-            interface_id=f"{entity_id[:12]}_holdable",
-            entity_id=entity_id,
-            name="可持有",
-            description=f"可以持有{name}",
-        ))
         self._graph.register_entity(target_ent)
 
         # Register target as basic entity if that's how it was resolved

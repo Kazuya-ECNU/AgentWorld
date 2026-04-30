@@ -40,7 +40,6 @@ class Position(BaseModel):
 
 class PhysicalAttributes(BaseModel):
     """NPC 身体属性"""
-    memory_rate: float = Field(default=0.5, ge=0.0, le=1.0, description="记忆衰减率，越高记得越久")
     energy_capacity: float = Field(default=100.0, ge=0.0, description="最大活力上限")
     health: float = Field(default=100.0, ge=0.0, description="生命值")
     recovery_speed: float = Field(default=1.0, ge=0.0, description="恢复速度倍率")
@@ -55,16 +54,6 @@ class PersonaTags(BaseModel):
     interests: list[str] = Field(default_factory=list)  # 兴趣爱好
     personality: list[str] = Field(default_factory=list)  # 性格特点
     special_traits: list[str] = Field(default_factory=list)  # 特殊 traits
-
-
-class MemoryEntry(BaseModel):
-    """NPC 记忆条目"""
-    event: str
-    timestamp: datetime
-    importance: float = Field(ge=0.0, le=1.0, default=0.5)  # 重要性 0-1
-    related_npc_ids: list[str] = Field(default_factory=list)
-    location: str | None = None  # 事件发生地点
-    goal: str | None = None      # 关联的目标
 
 
 class NPC(BaseModel):
@@ -87,8 +76,7 @@ class NPC(BaseModel):
     inventory: list[str] = Field(default_factory=list)
     position: Position = Field(default_factory=Position)
 
-    # 记忆与关系
-    memory: list[MemoryEntry] = Field(default_factory=list)
+    # 关系
     relationships: dict = Field(default_factory=dict)  # {npc_id: affinity (-100 to 100)}
 
     # 身体属性与人格
@@ -114,19 +102,6 @@ class NPC(BaseModel):
         """恢复活力（受恢复速度影响）"""
         recovered = amount * self.physical.recovery_speed
         self.vitality = min(self.physical.energy_capacity, self.vitality + recovered)
-
-    def add_memory(self, event: str, importance: float = 0.5, related_npcs: list[str] | None = None, location: str | None = None, goal: str | None = None):
-        """添加记忆"""
-        entry = MemoryEntry(
-            event=event,
-            timestamp=datetime.now(),
-            importance=importance,
-            related_npc_ids=related_npcs or [],
-            location=location or self.position.zone_id,
-            goal=goal,
-        )
-        self.memory.append(entry)
-        self.updated_at = datetime.now()
 
     def update_relationship(self, npc_id: str, delta: int):
         """更新与某 NPC 的关系值"""
