@@ -4,14 +4,9 @@ __pycache__/
 *.db
 *.log
 .DS_Store
-start.sh
-p2.sh
-run_server.py
-web/start.sh
+
 # Temp & runtime files
-data/*.db
-data/*.db-*
-data/tick_state.json
+data/
 *.swp
 *.swo
 *.swn
@@ -21,7 +16,21 @@ data/tick_state.json
 
 # Trace output (generated, not versioned)
 traces_oneshot/
-traces_30tick/trace_tick*.json
+traces_30tick/
+
+# Logs
+logs/
+
+# Internal task docs
+tasks/
+
+# Test files
+tests/
+test_*.py
+run_test.sh
+test_tick.sh
+quick_test.py
+p2.sh
 
 # IDE & OS
 .idea/
